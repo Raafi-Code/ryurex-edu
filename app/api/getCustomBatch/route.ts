@@ -27,20 +27,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const subcategoryInt = parseInt(subcategory);
     console.log('🎮 Custom Batch Request:', {
       userId: user.id,
       category,
-      subcategory: parseInt(subcategory)
+      subcategory: subcategoryInt,
+      isPvP,
     });
 
     // Get all words from the specified category and subcategory
     // No "due today" filter - just fetch all words for custom learning mode
-    const { data: allWords, error: fetchError } = await supabase
+    let query = supabase
       .from('vocab_master')
       .select('id, indo, english, class, category, subcategory')
-      .eq('category', category)
-      .eq('subcategory', parseInt(subcategory))
-      .order('id');
+      .eq('category', category);
+    
+    // If subcategory is 0 (Random mode), fetch from all subcategories
+    // Otherwise, fetch from specific subcategory
+    if (subcategoryInt !== 0) {
+      query = query.eq('subcategory', subcategoryInt);
+    }
+    
+    const { data: allWords, error: fetchError } = await query.order('id');
 
     if (fetchError) {
       console.error('Error fetching words:', fetchError);
@@ -51,7 +59,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!allWords || allWords.length === 0) {
-      console.log('⚠️ No words found for:', { category, subcategory });
+      console.log('⚠️ No words found for:', { category, subcategory: subcategoryInt });
       return NextResponse.json({
         success: true,
         words: [],
@@ -128,7 +136,15 @@ export async function GET(request: NextRequest) {
     // Strategy: Start with some review words (if available), then new words
     let selectedWords: Array<{ id: number; indo: string; english: string; class: string; category: string; subcategory: number }> = [];
     
-    if (reviewWords.length > 0 && newWords.length > 0) {
+    // Check if this is Random mode (subcategory === 0) for PvP
+    const isRandomMode = subcategoryInt === 0;
+    
+    if (isRandomMode && isPvP) {
+      // For Random PvP mode, we'll use all words
+      // Just return all available words (game will limit based on num_questions)
+      selectedWords = allWords;
+      console.log(`🎲 Random Mode PvP: Using all ${allWords.length} words from category`);
+    } else if (reviewWords.length > 0 && newWords.length > 0) {
       // Mix: 40% review, 60% new (or whatever is available)
       const reviewCount = Math.min(4, reviewWords.length);
       const newCount = Math.min(6, newWords.length);
@@ -145,14 +161,8 @@ export async function GET(request: NextRequest) {
       selectedWords = reviewWords.slice(0, 10);
     }
 
-    // Shuffle the selected words for variety (ONLY for non-PvP mode)
-    // For PvP mode, keep original order to ensure consistency between players
-    if (!isPvP) {
-      selectedWords = selectedWords
-        .map(word => ({ word, sort: Math.random() }))
-        .sort((a, b) => a.sort - b.sort)
-        .map(({ word }) => word);
-    }
+    // Words sudah diambil sesuai kebutuhan, langsung pakai tanpa shuffle
+    // Tidak perlu randomize lagi setelah fetch
 
     console.log(`🎯 Selected ${selectedWords.length} words for practice`);
 

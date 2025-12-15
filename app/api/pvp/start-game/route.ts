@@ -29,13 +29,21 @@ async function generateAISentencesWithGroq(
 ) {
   try {
     console.log('🤖 Fetching vocab words for AI generation...');
+    console.log('📝 Category:', category, 'Subcategory:', subcategory, 'NumQuestions:', numQuestions);
     
     // Fetch vocab words from database
-    const { data: vocabData, error: fetchError } = await supabase
+    let query = supabase
       .from('vocab_master')
       .select('id, indo, english, class, category, subcategory')
-      .eq('category', category)
-      .eq('subcategory', subcategory)
+      .eq('category', category);
+    
+    // If subcategory is 0 (Random mode), fetch from all subcategories
+    // Otherwise, fetch from specific subcategory
+    if (subcategory !== 0) {
+      query = query.eq('subcategory', subcategory);
+    }
+    
+    const { data: vocabData, error: fetchError } = await query
       .order('id')
       .limit(numQuestions);
 
@@ -218,16 +226,24 @@ export async function POST(request: NextRequest) {
           );
         }
       }
+    } else {
+      // For vocab mode (including Random mode), questions will be fetched from game page
+      console.log('📚 Vocab mode: Game will fetch questions from getCustomBatch API');
     }
 
-    // Update lobby status to in_progress and cache questions
+    // Update lobby status to in_progress and cache questions (if available)
+    const updateData: any = {
+      status: 'in_progress',
+      started_at: new Date().toISOString(),
+    };
+    
+    if (questionsData) {
+      updateData.questions_data = questionsData;
+    }
+    
     const { error: updateError } = await supabase
       .from('pvp_lobbies')
-      .update({
-        status: 'in_progress',
-        started_at: new Date().toISOString(),
-        questions_data: questionsData,
-      })
+      .update(updateData)
       .eq('id', lobbyId);
 
     if (updateError) {

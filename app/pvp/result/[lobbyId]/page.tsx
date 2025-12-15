@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
-import { Trophy, Home, RotateCcw } from 'lucide-react';
+import { Trophy, Home, RotateCcw, Target, Clock, CheckCircle2, Zap, TrendingDown } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 
 interface ResultData {
@@ -17,11 +17,17 @@ interface ResultData {
     correctAnswers: number;
     totalQuestions: number;
     avgTimeMs: number;
+    totalTimeMs: number;
+    fastestAnswerMs: number;
+    slowestAnswerMs: number;
   } | null;
   joinedStats?: {
     correctAnswers: number;
     totalQuestions: number;
     avgTimeMs: number;
+    totalTimeMs: number;
+    fastestAnswerMs: number;
+    slowestAnswerMs: number;
   } | null;
 }
 
@@ -109,6 +115,9 @@ export default function PvPResultPage() {
             correctAnswers: lobby.host_correct_answers,
             totalQuestions: lobby.host_total_questions,
             avgTimeMs: lobby.host_avg_time_per_question_ms,
+            totalTimeMs: lobby.host_total_time_ms || 0,
+            fastestAnswerMs: lobby.host_fastest_answer_ms || 0,
+            slowestAnswerMs: lobby.host_slowest_answer_ms || 0,
           };
         }
 
@@ -118,6 +127,9 @@ export default function PvPResultPage() {
             correctAnswers: lobby.joined_correct_answers,
             totalQuestions: lobby.joined_total_questions,
             avgTimeMs: lobby.joined_avg_time_per_question_ms,
+            totalTimeMs: lobby.joined_total_time_ms || 0,
+            fastestAnswerMs: lobby.joined_fastest_answer_ms || 0,
+            slowestAnswerMs: lobby.joined_slowest_answer_ms || 0,
           };
         }
 
@@ -241,41 +253,41 @@ export default function PvPResultPage() {
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-primary-yellow rounded-2xl p-6 sm:p-8 mb-8"
+          className="bg-primary-yellow rounded-2xl p-4 sm:p-5 mb-6"
         >
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center justify-between gap-3">
             {/* Host Score */}
             <div className="flex-1 text-center">
-              <h2 className="text-body-lg text-black mb-3 truncate font-black">
+              <h2 className="text-heading-3 text-black mb-1 truncate font-black">
                 {resultData.hostName}
               </h2>
-              <div className="text-heading-1 font-black text-black mb-2">
+              <div className="text-heading-1 font-black text-black">
                 {resultData.hostScore}
               </div>
             </div>
 
             {/* VS Divider */}
-            <div className="flex flex-col items-center gap-2">
-              <p className="text-lg sm:text-2xl font-black text-black">VS</p>
+            <div className="flex flex-col items-center gap-1">
+              <p className="text-heading-2 font-black text-black">VS</p>
               {/* Result Indicator */}
-              <div className="text-sm font-bold px-2 py-1 rounded bg-black/10 text-black">
+              <div className="text-label font-bold px-1.5 py-0.5 rounded bg-black/10 text-black text-xs">
                 {isDraw ? '🤝 Draw' : ''}
               </div>
             </div>
 
             {/* Joined Score */}
             <div className="flex-1 text-center">
-              <h2 className="text-body-lg text-black mb-3 truncate font-black">
+              <h2 className="text-heading-3 text-black mb-1 truncate font-black">
                 {resultData.joinedName}
               </h2>
-              <div className="text-heading-1 font-black text-black mb-2">
+              <div className="text-heading-1 font-black text-black">
                 {resultData.joinedScore}
               </div>
             </div>
           </div>
         </motion.div>
 
-        {/* Stats Rows - Like Match Stats with 3-column layout */}
+        {/* Stats Rows - Yellow Theme with Icons */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -283,42 +295,33 @@ export default function PvPResultPage() {
           className="bg-primary-yellow rounded-2xl overflow-hidden mb-8 space-y-0"
         >
           {/* Accuracy */}
-          <div className="px-4 sm:px-6 py-4 flex justify-between items-center gap-3">
+          <div className="px-3 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between gap-1 sm:gap-2">
             <div className="flex-1 flex justify-start">
               <div className={`${
                 (resultData.hostStats ? ((resultData.hostStats.correctAnswers / resultData.hostStats.totalQuestions) * 100) : 0) > 
                 (resultData.joinedStats ? ((resultData.joinedStats.correctAnswers / resultData.joinedStats.totalQuestions) * 100) : 0)
-                  ? 'bg-black rounded px-2 py-1'
+                  ? 'bg-black/20 rounded px-2 py-1'
                   : ''
               }`}>
-                <span className={`text-heading-3 font-bold ${
-                  (resultData.hostStats ? ((resultData.hostStats.correctAnswers / resultData.hostStats.totalQuestions) * 100) : 0) > 
-                  (resultData.joinedStats ? ((resultData.joinedStats.correctAnswers / resultData.joinedStats.totalQuestions) * 100) : 0)
-                    ? 'text-primary-yellow'
-                    : 'text-black'
-                }`}>
+                <span className={`text-body-lg font-bold text-black`}>
                   {resultData.hostStats 
                     ? ((resultData.hostStats.correctAnswers / resultData.hostStats.totalQuestions) * 100).toFixed(1)
                     : '0'}%
                 </span>
               </div>
             </div>
-            <span className="text-black text-body-lg font-bold flex-1 text-center">
-              Accuracy
-            </span>
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+              <Target className="w-4 sm:w-5 h-4 sm:h-5 text-black" />
+              <span className="text-xs sm:text-sm font-semibold text-black">Accuracy</span>
+            </div>
             <div className="flex-1 flex justify-end">
               <div className={`${
                 (resultData.joinedStats ? ((resultData.joinedStats.correctAnswers / resultData.joinedStats.totalQuestions) * 100) : 0) > 
                 (resultData.hostStats ? ((resultData.hostStats.correctAnswers / resultData.hostStats.totalQuestions) * 100) : 0)
-                  ? 'bg-black rounded px-2 py-1'
+                  ? 'bg-black/20 rounded px-2 py-1'
                   : ''
               }`}>
-                <span className={`text-heading-3 font-bold ${
-                  (resultData.joinedStats ? ((resultData.joinedStats.correctAnswers / resultData.joinedStats.totalQuestions) * 100) : 0) > 
-                  (resultData.hostStats ? ((resultData.hostStats.correctAnswers / resultData.hostStats.totalQuestions) * 100) : 0)
-                    ? 'text-primary-yellow'
-                    : 'text-black'
-                }`}>
+                <span className={`text-body-lg font-bold text-black`}>
                   {resultData.joinedStats
                     ? ((resultData.joinedStats.correctAnswers / resultData.joinedStats.totalQuestions) * 100).toFixed(1)
                     : '0'}%
@@ -328,38 +331,31 @@ export default function PvPResultPage() {
           </div>
 
           {/* Avg Time */}
-          <div className="px-4 sm:px-6 py-4 flex justify-between items-center gap-3">
+          <div className="px-3 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between gap-1 sm:gap-2">
             <div className="flex-1 flex justify-start">
               <div className={`${
                 (resultData.hostStats?.avgTimeMs ?? 0) < (resultData.joinedStats?.avgTimeMs ?? Infinity)
-                  ? 'bg-black rounded px-2 py-1'
+                  ? 'bg-black/20 rounded px-2 py-1'
                   : ''
               }`}>
-                <span className={`text-heading-3 font-bold ${
-                  (resultData.hostStats?.avgTimeMs ?? 0) < (resultData.joinedStats?.avgTimeMs ?? Infinity)
-                    ? 'text-primary-yellow'
-                    : 'text-black'
-                }`}>
+                <span className={`text-body-lg font-bold text-black`}>
                   {resultData.hostStats?.avgTimeMs 
                     ? (resultData.hostStats.avgTimeMs / 1000).toFixed(1) 
                     : '0'}s
                 </span>
               </div>
             </div>
-            <span className="text-black text-body-lg font-bold flex-1 text-center">
-              Avg Time
-            </span>
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+              <Clock className="w-4 sm:w-5 h-4 sm:h-5 text-black" />
+              <span className="text-xs sm:text-sm font-semibold text-black">Avg Time</span>
+            </div>
             <div className="flex-1 flex justify-end">
               <div className={`${
                 (resultData.joinedStats?.avgTimeMs ?? Infinity) < (resultData.hostStats?.avgTimeMs ?? 0)
-                  ? 'bg-black rounded px-2 py-1'
+                  ? 'bg-black/20 rounded px-2 py-1'
                   : ''
               }`}>
-                <span className={`text-heading-3 font-bold ${
-                  (resultData.joinedStats?.avgTimeMs ?? Infinity) < (resultData.hostStats?.avgTimeMs ?? 0)
-                    ? 'text-primary-yellow'
-                    : 'text-black'
-                }`}>
+                <span className={`text-body-lg font-bold text-black`}>
                   {resultData.joinedStats?.avgTimeMs 
                     ? (resultData.joinedStats.avgTimeMs / 1000).toFixed(1) 
                     : '0'}s
@@ -369,37 +365,140 @@ export default function PvPResultPage() {
           </div>
 
           {/* Answered */}
-          <div className="px-4 sm:px-6 py-4 flex justify-between items-center gap-3 border-b border-black/20">
+          <div className="px-3 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between gap-1 sm:gap-2">
             <div className="flex-1 flex justify-start">
               <div className={`${
                 (resultData.hostStats?.correctAnswers ?? 0) > (resultData.joinedStats?.correctAnswers ?? 0)
-                  ? 'bg-black rounded px-2 py-1'
+                  ? 'bg-black/20 rounded px-2 py-1'
                   : ''
               }`}>
-                <span className={`text-heading-3 font-bold ${
+                <span className={`text-body-lg font-bold ${
                   (resultData.hostStats?.correctAnswers ?? 0) > (resultData.joinedStats?.correctAnswers ?? 0)
-                    ? 'text-primary-yellow'
+                    ? 'text-black'
                     : 'text-black'
                 }`}>
-                  {resultData.hostStats?.correctAnswers || 0} / {resultData.hostStats?.totalQuestions || 0}
+                  {resultData.hostStats?.correctAnswers ?? 0}/{resultData.hostStats?.totalQuestions ?? 0}
                 </span>
               </div>
             </div>
-            <span className="text-black text-body-lg font-bold flex-1 text-center">
-              Answered
-            </span>
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+              <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-black" />
+              <span className="text-xs sm:text-sm font-semibold text-black">Answered</span>
+            </div>
             <div className="flex-1 flex justify-end">
               <div className={`${
                 (resultData.joinedStats?.correctAnswers ?? 0) > (resultData.hostStats?.correctAnswers ?? 0)
-                  ? 'bg-black rounded px-2 py-1'
+                  ? 'bg-black/20 rounded px-2 py-1'
                   : ''
               }`}>
-                <span className={`text-heading-3 font-bold ${
+                <span className={`text-body-lg font-bold ${
                   (resultData.joinedStats?.correctAnswers ?? 0) > (resultData.hostStats?.correctAnswers ?? 0)
-                    ? 'text-primary-yellow'
+                    ? 'text-black'
                     : 'text-black'
                 }`}>
-                  {resultData.joinedStats?.correctAnswers || 0} / {resultData.joinedStats?.totalQuestions || 0}
+                  {resultData.joinedStats?.correctAnswers ?? 0}/{resultData.joinedStats?.totalQuestions ?? 0}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Total Time */}
+          <div className="px-3 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between gap-1 sm:gap-2">
+            <div className="flex-1 flex justify-start">
+              <div className={`${
+                (resultData.hostStats?.totalTimeMs ?? 0) < (resultData.joinedStats?.totalTimeMs ?? Infinity)
+                  ? 'bg-black/20 rounded px-2 py-1'
+                  : ''
+              }`}>
+                <span className={`text-body-lg font-bold text-black`}>
+                  {resultData.hostStats?.totalTimeMs 
+                    ? (resultData.hostStats.totalTimeMs / 1000).toFixed(1) 
+                    : '0'}s
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+              <Clock className="w-4 sm:w-5 h-4 sm:h-5 text-black" />
+              <span className="text-xs sm:text-sm font-semibold text-black">Total Time</span>
+            </div>
+            <div className="flex-1 flex justify-end">
+              <div className={`${
+                (resultData.joinedStats?.totalTimeMs ?? Infinity) < (resultData.hostStats?.totalTimeMs ?? 0)
+                  ? 'bg-black/20 rounded px-2 py-1'
+                  : ''
+              }`}>
+                <span className={`text-body-lg font-bold text-black`}>
+                  {resultData.joinedStats?.totalTimeMs 
+                    ? (resultData.joinedStats.totalTimeMs / 1000).toFixed(1) 
+                    : '0'}s
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Fastest Answer */}
+          <div className="px-3 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between gap-1 sm:gap-2">
+            <div className="flex-1 flex justify-start">
+              <div className={`${
+                (resultData.hostStats?.fastestAnswerMs ?? Infinity) < (resultData.joinedStats?.fastestAnswerMs ?? Infinity)
+                  ? 'bg-black/20 rounded px-2 py-1'
+                  : ''
+              }`}>
+                <span className={`text-body-lg font-bold text-black`}>
+                  {resultData.hostStats?.fastestAnswerMs 
+                    ? (resultData.hostStats.fastestAnswerMs / 1000).toFixed(2) 
+                    : '0'}s
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+              <Zap className="w-4 sm:w-5 h-4 sm:h-5 text-black" />
+              <span className="text-xs sm:text-sm font-semibold text-black">Fastest</span>
+            </div>
+            <div className="flex-1 flex justify-end">
+              <div className={`${
+                (resultData.joinedStats?.fastestAnswerMs ?? Infinity) < (resultData.hostStats?.fastestAnswerMs ?? Infinity)
+                  ? 'bg-black/20 rounded px-2 py-1'
+                  : ''
+              }`}>
+                <span className={`text-body-lg font-bold text-black`}>
+                  {resultData.joinedStats?.fastestAnswerMs 
+                    ? (resultData.joinedStats.fastestAnswerMs / 1000).toFixed(2) 
+                    : '0'}s
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Slowest Answer */}
+          <div className="px-3 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between gap-1 sm:gap-2">
+            <div className="flex-1 flex justify-start">
+              <div className={`${
+                (resultData.hostStats?.slowestAnswerMs ?? 0) < (resultData.joinedStats?.slowestAnswerMs ?? Infinity)
+                  ? 'bg-black/20 rounded px-2 py-1'
+                  : ''
+              }`}>
+                <span className={`text-body-lg font-bold text-black`}>
+                  {resultData.hostStats?.slowestAnswerMs 
+                    ? (resultData.hostStats.slowestAnswerMs / 1000).toFixed(2) 
+                    : '0'}s
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+              <TrendingDown className="w-4 sm:w-5 h-4 sm:h-5 text-black" />
+              <span className="text-xs sm:text-sm font-semibold text-black">Slowest</span>
+            </div>
+            <div className="flex-1 flex justify-end">
+              <div className={`${
+                (resultData.joinedStats?.slowestAnswerMs ?? Infinity) < (resultData.hostStats?.slowestAnswerMs ?? 0)
+                  ? 'bg-black/20 rounded px-2 py-1'
+                  : ''
+              }`}>
+                <span className={`text-body-lg font-bold text-black`}>
+                  {resultData.joinedStats?.slowestAnswerMs 
+                    ? (resultData.joinedStats.slowestAnswerMs / 1000).toFixed(2) 
+                    : '0'}s
                 </span>
               </div>
             </div>

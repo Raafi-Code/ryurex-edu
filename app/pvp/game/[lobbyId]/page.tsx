@@ -251,15 +251,18 @@ export default function PvPGamePage() {
     }
   };
 
-  const calculateScore = (isCorrect: boolean, timeTakenMs: number): number => {
+  const calculateScore = (isCorrect: boolean, timeTakenMs: number, hintCount: number = 0): number => {
     if (!isCorrect) return 0;
 
     const basePoints = 100;
     const timerDuration = lobbData?.timer_duration || 30;
     const timeTakenSec = timeTakenMs / 1000;
-    const timePenalty = (timeTakenSec / timerDuration) * 30;
+    const timePenalty = (timeTakenSec / timerDuration) * 100;
+    
+    // Hint penalty: 10 poin per hint yang digunakan
+    const hintPenalty = hintCount * 10;
 
-    return Math.max(0, Math.floor(basePoints - timePenalty));
+    return Math.max(0, Math.floor(basePoints - timePenalty - hintPenalty));
   };
 
   const calculateGameStats = (userAnswers: UserAnswer[]): GameStats => {
@@ -288,12 +291,13 @@ export default function PvPGamePage() {
   const handleAnswerSubmit = (
     answer: string,
     correctAnswer: string,
-    timeTakenMs: number
+    timeTakenMs: number,
+    hintCount: number = 0
   ) => {
     if (!gameState) return;
 
     const isCorrect = answer.trim().toLowerCase() === correctAnswer.toLowerCase();
-    const score = calculateScore(isCorrect, timeTakenMs);
+    const score = calculateScore(isCorrect, timeTakenMs, hintCount);
 
     const newAnswer: UserAnswer = {
       vocab_id: gameState.questions[gameState.currentQuestionIndex].vocab_id,
@@ -601,7 +605,7 @@ function VocabGameDisplay({
   gameFinished: boolean;
   hintClickCount: number;
   onHintClick: () => void;
-  onAnswerSubmit: (answer: string, correctAnswer: string, timeTakenMs: number) => void;
+  onAnswerSubmit: (answer: string, correctAnswer: string, timeTakenMs: number, hintCount: number) => void;
 }) {
   const [userAnswer, setUserAnswer] = useState('');
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
@@ -621,7 +625,8 @@ function VocabGameDisplay({
       onAnswerSubmit(
         userAnswer,
         currentQuestion.english,
-        (timerDuration - timer) * 1000
+        timer * 1000,  // ✅ timer adalah waktu yang telah digunakan (dalam detik), konversi ke ms
+        hintClickCount  // ✅ Pass hint count untuk penalty calculation
       );
       setUserAnswer('');
       setFeedback(null);
@@ -832,12 +837,13 @@ function AIGameDisplay({
 }: {
   currentQuestion: VocabWord;
   gameFinished: boolean;
-  onAnswerSubmit: (answer: string, correctAnswer: string, timeTakenMs: number) => void;
+  onAnswerSubmit: (answer: string, correctAnswer: string, timeTakenMs: number, hintCount: number) => void;
 }) {
   const [userAnswer, setUserAnswer] = useState('');
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [startTime] = useState(Date.now());
+  const [hintClickCount, setHintClickCount] = useState(0);
 
   // Render Indonesian sentence with vocabulary word highlighted
   const renderSentenceWithBadge = () => {
@@ -891,12 +897,62 @@ function AIGameDisplay({
       onAnswerSubmit(
         userAnswer,
         currentQuestion.sentence_english || '',
-        timeTakenMs
+        timeTakenMs,
+        hintClickCount  // ✅ Pass hint count untuk penalty calculation
       );
       setUserAnswer('');
       setFeedback(null);
       setIsSubmitting(false);
+      setHintClickCount(0);
     }, 1500);
+  };
+
+  const renderUnderscoreDisplay = () => {
+    if (!currentQuestion.sentence_english) return null;
+
+    const correctSentence = currentQuestion.sentence_english;
+    const words = correctSentence.split(/\s+/);
+
+    return words.map((word, wordIdx) => {
+      const letters = word.split('');
+
+      return (
+        <span key={wordIdx}>
+          {letters.map((letter, letterIdx) => {
+            if (!/[a-zA-Z]/.test(letter)) {
+              return <span key={letterIdx}>{letter}</span>;
+            }
+
+            if (letterIdx < hintClickCount) {
+              return (
+                <span key={letterIdx} className="text-primary-yellow font-bold">
+                  {letter}
+                </span>
+              );
+            }
+
+            const userWords = userAnswer
+              .trim()
+              .split(/\s+/)
+              .filter((w) => w.length > 0);
+            if (userWords[wordIdx] && userWords[wordIdx][letterIdx]) {
+              return (
+                <span key={letterIdx} className="text-text-primary">
+                  {userWords[wordIdx][letterIdx]}
+                </span>
+              );
+            }
+
+            return (
+              <span key={letterIdx} className="text-text-secondary">
+                _
+              </span>
+            );
+          })}
+          {wordIdx < words.length - 1 && <span> </span>}
+        </span>
+      );
+    });
   };
 
   return (
@@ -918,6 +974,228 @@ function AIGameDisplay({
             {renderSentenceWithBadge()}
           </p>
         </div>
+
+        {/* Underscore Display Card */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-card-darker border-2 border-theme rounded-2xl p-4 sm:p-8"
+        >
+          <p className="text-label font-semibold text-text-secondary mb-4 uppercase tracking-wide">
+            Your Answer
+          </p>
+          <div className="text-lg sm:text-game-display text-text-secondary tracking-wider break-words leading-relaxed text-center">
+            {renderUnderscoreDisplay()}
+          </div>
+        </motion.div>
+
+        {/* Input */}
+        <div className="flex flex-col gap-3 sm:gap-4">
+          <input
+            type="text"
+            value={userAnswer}
+            onChange={(e) => setUserAnswer(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter' && !isSubmitting && !feedback) {
+                handleSubmit();
+              }
+            }}
+            placeholder="Type the English translation..."
+            autoFocus
+            disabled={!!feedback || gameFinished}
+            className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-input border-2 border-input rounded-2xl text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:border-primary-yellow transition-colors disabled:opacity-50 text-body-sm sm:text-body-lg"
+          />
+
+          <div className="flex gap-2 sm:gap-3">
+            <button
+              onClick={() => setHintClickCount(hintClickCount + 1)}
+              disabled={!!feedback || gameFinished || hintClickCount >= 10}
+              className="flex-1 py-3 sm:py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer bg-secondary-purple text-white hover:bg-secondary-purple/90 disabled:opacity-50 disabled:cursor-not-allowed text-body-xs sm:text-body-lg"
+            >
+              💡 Hint ({hintClickCount})
+            </button>
+
+            <button
+              onClick={handleSubmit}
+              disabled={
+                isSubmitting ||
+                !userAnswer.trim() ||
+                !!feedback ||
+                gameFinished
+              }
+              className="flex-1 px-4 sm:px-6 py-3 sm:py-4 bg-primary-yellow text-black rounded-xl font-bold hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 transition-transform cursor-pointer text-body-xs sm:text-body-lg"
+            >
+              {isSubmitting ? 'Checking...' : 'Submit'}
+            </button>
+          </div>
+        </div>
+
+        {/* Feedback */}
+        {feedback && (
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className={`text-center py-6 ${
+              feedback === 'correct' ? 'text-green-400' : 'text-red-400'
+            }`}
+          >
+            <div className="text-heading-2 sm:text-heading-1 font-bold break-words">
+              {feedback === 'correct' ? (
+                <>✓ Correct!</>
+              ) : (
+                <>
+                  ✗ Wrong! The answer is: {currentQuestion.sentence_english}
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+function SentenceGameDisplay({
+  currentQuestion,
+  gameFinished,
+  onAnswerSubmit,
+}: {
+  currentQuestion: VocabWord;
+  gameFinished: boolean;
+  onAnswerSubmit: (answer: string, correctAnswer: string, timeTakenMs: number, hintCount: number) => void;
+}) {
+  const [userAnswer, setUserAnswer] = useState('');
+  const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [startTime] = useState(Date.now());
+  const [hintClickCount, setHintClickCount] = useState(0);
+
+  const handleSubmit = () => {
+    if (isSubmitting || !userAnswer.trim() || gameFinished) return;
+
+    setIsSubmitting(true);
+
+    // Validate: split, trim, lowercase each word
+    const userWords = userAnswer
+      .trim()
+      .split(/\s+/)
+      .map((w) => w.toLowerCase().replace(/[.,!?;:'"]/g, ''));
+
+    const correctWords = (currentQuestion.sentence_english || '')
+      .trim()
+      .split(/\s+/)
+      .map((w) => w.toLowerCase().replace(/[.,!?;:'"]/g, ''));
+
+    const isCorrect =
+      userWords.length === correctWords.length &&
+      userWords.every((word, idx) => word === correctWords[idx]);
+
+    setFeedback(isCorrect ? 'correct' : 'wrong');
+
+    // Auto-next after 1.5 seconds
+    setTimeout(() => {
+      const timeTakenMs = Date.now() - startTime;
+      onAnswerSubmit(
+        userAnswer,
+        currentQuestion.sentence_english || '',
+        timeTakenMs,
+        hintClickCount  // ✅ Pass hint count untuk penalty calculation
+      );
+      setUserAnswer('');
+      setFeedback(null);
+      setIsSubmitting(false);
+      setHintClickCount(0);
+    }, 1500);
+  };
+
+  const renderUnderscoreDisplay = () => {
+    if (!currentQuestion.sentence_english) return null;
+
+    const correctSentence = currentQuestion.sentence_english;
+    const words = correctSentence.split(/\s+/);
+
+    return words.map((word, wordIdx) => {
+      const letters = word.split('');
+
+      return (
+        <span key={wordIdx}>
+          {letters.map((letter, letterIdx) => {
+            if (!/[a-zA-Z]/.test(letter)) {
+              return <span key={letterIdx}>{letter}</span>;
+            }
+
+            if (letterIdx < hintClickCount) {
+              return (
+                <span key={letterIdx} className="text-primary-yellow font-bold">
+                  {letter}
+                </span>
+              );
+            }
+
+            const userWords = userAnswer
+              .trim()
+              .split(/\s+/)
+              .filter((w) => w.length > 0);
+            if (userWords[wordIdx] && userWords[wordIdx][letterIdx]) {
+              return (
+                <span key={letterIdx} className="text-text-primary">
+                  {userWords[wordIdx][letterIdx]}
+                </span>
+              );
+            }
+
+            return (
+              <span key={letterIdx} className="text-text-secondary">
+                _
+              </span>
+            );
+          })}
+          {wordIdx < words.length - 1 && <span> </span>}
+        </span>
+      );
+    });
+  };
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={currentQuestion.vocab_id}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        transition={{ duration: 0.3 }}
+        className="space-y-6"
+      >
+        {/* Question - Indonesian Sentence */}
+        <div className="bg-card border-2 border-theme rounded-2xl p-6 sm:p-8">
+          <p className="text-label font-semibold text-text-secondary mb-3 uppercase tracking-wide">
+            Complete the sentence
+          </p>
+          <p className="text-heading-3 sm:text-heading-2 font-bold text-text-primary">
+            {currentQuestion.sentence_indo}
+          </p>
+        </div>
+
+        {/* Underscore Display Card */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-card border-2 border-primary-yellow/50 rounded-2xl p-6 sm:p-8"
+        >
+          <p className="text-label font-semibold text-text-secondary mb-4 uppercase tracking-wide flex items-center gap-2">
+            💡 Helper
+          </p>
+          <div className="text-heading-3 sm:text-heading-2 font-mono text-text-primary break-words leading-relaxed">
+            {renderUnderscoreDisplay()}
+          </div>
+          <button
+            onClick={() => setHintClickCount(hintClickCount + 1)}
+            disabled={!!feedback || gameFinished || hintClickCount >= 5}
+            className="mt-4 px-4 py-2 bg-primary-yellow/20 text-primary-yellow rounded-lg font-semibold hover:bg-primary-yellow/30 disabled:opacity-50 disabled:hover:bg-primary-yellow/20 transition-colors cursor-pointer text-label"
+          >
+            Show Hint ({hintClickCount}/5)
+          </button>
+        </motion.div>
 
         {/* Input */}
         <div className="flex flex-col gap-3 sm:gap-4">
@@ -975,128 +1253,3 @@ function AIGameDisplay({
   );
 }
 
-function SentenceGameDisplay({
-  currentQuestion,
-  gameFinished,
-  onAnswerSubmit,
-}: {
-  currentQuestion: VocabWord;
-  gameFinished: boolean;
-  onAnswerSubmit: (answer: string, correctAnswer: string, timeTakenMs: number) => void;
-}) {
-  const [userAnswer, setUserAnswer] = useState('');
-  const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [startTime] = useState(Date.now());
-
-  const handleSubmit = () => {
-    if (isSubmitting || !userAnswer.trim() || gameFinished) return;
-
-    setIsSubmitting(true);
-
-    // Validate: split, trim, lowercase each word
-    const userWords = userAnswer
-      .trim()
-      .split(/\s+/)
-      .map((w) => w.toLowerCase().replace(/[.,!?;:'"]/g, ''));
-
-    const correctWords = (currentQuestion.sentence_english || '')
-      .trim()
-      .split(/\s+/)
-      .map((w) => w.toLowerCase().replace(/[.,!?;:'"]/g, ''));
-
-    const isCorrect =
-      userWords.length === correctWords.length &&
-      userWords.every((word, idx) => word === correctWords[idx]);
-
-    setFeedback(isCorrect ? 'correct' : 'wrong');
-
-    // Auto-next after 1.5 seconds
-    setTimeout(() => {
-      const timeTakenMs = Date.now() - startTime;
-      onAnswerSubmit(
-        userAnswer,
-        currentQuestion.sentence_english || '',
-        timeTakenMs
-      );
-      setUserAnswer('');
-      setFeedback(null);
-      setIsSubmitting(false);
-    }, 1500);
-  };
-
-  return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={currentQuestion.vocab_id}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        transition={{ duration: 0.3 }}
-        className="space-y-8"
-      >
-        {/* Question - Indonesian Sentence */}
-        <div className="bg-card border-2 border-theme rounded-2xl p-8">
-          <p className="text-sm font-semibold text-text-secondary mb-2 uppercase tracking-wide">
-            Complete the sentence
-          </p>
-          <p className="text-3xl font-bold text-text-primary">
-            {currentQuestion.sentence_indo}
-          </p>
-        </div>
-
-        {/* Input */}
-        <div className="flex flex-col gap-4">
-          <input
-            type="text"
-            value={userAnswer}
-            onChange={(e) => setUserAnswer(e.target.value)}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter' && !isSubmitting && !feedback) {
-                handleSubmit();
-              }
-            }}
-            placeholder="Type the English translation..."
-            autoFocus
-            disabled={!!feedback || gameFinished}
-            className="w-full px-6 py-4 bg-input border-2 border-input rounded-2xl text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:border-primary-yellow transition-colors disabled:opacity-50"
-          />
-
-          <button
-            onClick={handleSubmit}
-            disabled={
-              isSubmitting ||
-              !userAnswer.trim() ||
-              !!feedback ||
-              gameFinished
-            }
-            className="px-6 py-4 bg-primary-yellow text-black rounded-xl font-bold text-lg hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 transition-transform cursor-pointer"
-          >
-            {isSubmitting ? 'Checking...' : 'Submit'}
-          </button>
-        </div>
-
-        {/* Feedback */}
-        {feedback && (
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className={`text-center py-6 ${
-              feedback === 'correct' ? 'text-green-400' : 'text-red-400'
-            }`}
-          >
-            <div className="text-2xl font-bold">
-              {feedback === 'correct' ? (
-                <>✓ Correct!</>
-              ) : (
-                <>
-                  ✗ Wrong! The answer is: {currentQuestion.sentence_english}
-                </>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </motion.div>
-    </AnimatePresence>
-  );
-}
