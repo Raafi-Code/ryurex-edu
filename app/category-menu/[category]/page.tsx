@@ -160,6 +160,12 @@ export default function CategoryMenuPage() {
     }
   };
 
+  const handlePlaySentenceGame = () => {
+    if (selectedSubcategory !== null) {
+      router.push(`/sentence-box-mode?category=${encodeURIComponent(categoryName)}&subcategory=${selectedSubcategory}`);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -384,6 +390,18 @@ export default function CategoryMenuPage() {
                   >
                     <Play className="w-5 h-5" />
                     <span>Play Sentence Mode</span>
+                    <span className="bg-primary-yellow text-black px-2 py-0.5 rounded text-label">AI</span>
+                  </button>
+                )}
+
+                {/* Sentence Click Game Button */}
+                {selectedSubcategory !== null && (
+                  <button
+                    onClick={handlePlaySentenceGame}
+                    className="w-full py-4 rounded-2xl font-bold text-body-lg flex items-center justify-center gap-3 transition-all cursor-pointer bg-secondary-purple text-white hover:scale-105 hover:shadow-lg"
+                  >
+                    <Play className="w-5 h-5" />
+                    <span>Play Sentence Click</span>
                     <span className="bg-primary-yellow text-black px-2 py-0.5 rounded text-label">AI</span>
                   </button>
                 )}

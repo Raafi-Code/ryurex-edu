@@ -124,7 +124,7 @@ export default function AiModeContent() {
     return () => {
       isMounted = false;
     };
-  }, [category, subcategory, router]);
+  }, [category, subcategory]);
 
   const currentSentence = sentences[currentIndex];
 
