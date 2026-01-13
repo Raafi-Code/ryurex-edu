@@ -148,21 +148,38 @@ Return ONLY a JSON array with this exact structure, no other text, no markdown c
     generatedSentences.forEach(item => {
       const cleanedSentenceIndo = item.sentence_indo.trim().replace(/\.$/, ''); // Remove trailing dot
       const cleanedSentenceEnglish = item.sentence_english.trim().replace(/\.$/, ''); // Remove trailing dot
-      sentenceMapIndo.set(item.word.toLowerCase().trim(), cleanedSentenceIndo);
-      sentenceMapEnglish.set(item.word.toLowerCase().trim(), cleanedSentenceEnglish);
+      const normalizedWord = item.word.toLowerCase().trim();
+      sentenceMapIndo.set(normalizedWord, cleanedSentenceIndo);
+      sentenceMapEnglish.set(normalizedWord, cleanedSentenceEnglish);
+    });
+
+    console.log('📊 Generated sentences map:');
+    sentenceMapIndo.forEach((sentence, word) => {
+      console.log(`  ${word}: ${sentence.substring(0, 50)}...`);
     });
 
     // 4. Build result with both Indonesian and English sentences
-    const vocabWithAiSentences = vocabWords.map(vocab => ({
-      vocab_id: vocab.id,
-      indo: vocab.indo,
-      english: vocab.english,
-      class: vocab.class,
-      category: vocab.category,
-      subcategory: vocab.subcategory,
-      sentence_indo: sentenceMapIndo.get(vocab.indo.toLowerCase()) || `${vocab.indo} adalah...`, // Fallback
-      sentence_english: sentenceMapEnglish.get(vocab.indo.toLowerCase()) || `This is a ${vocab.english}...`, // Fallback
-    }));
+    const vocabWithAiSentences = vocabWords.map((vocab, idx) => {
+      const normalizedVocab = vocab.indo.toLowerCase().trim();
+      const sentenceIndo = sentenceMapIndo.get(normalizedVocab);
+      const sentenceEnglish = sentenceMapEnglish.get(normalizedVocab);
+      
+      if (!sentenceIndo || !sentenceEnglish) {
+        console.warn(`⚠️ Missing sentence for vocab "${vocab.indo}" (normalized: "${normalizedVocab}") at index ${idx}`);
+      }
+
+      return {
+        id: vocab.id,
+        vocab_id: vocab.id,
+        indo: vocab.indo,
+        english: vocab.english,
+        class: vocab.class,
+        category: vocab.category,
+        subcategory: vocab.subcategory,
+        sentence_indo: sentenceIndo || `${vocab.indo} adalah...`,
+        sentence_english: sentenceEnglish || `This is a ${vocab.english}...`,
+      };
+    });
 
     console.log(`✅ Generated ${vocabWithAiSentences.length} AI sentences (Indonesian + English)`);
 

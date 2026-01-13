@@ -40,15 +40,14 @@ export async function GET(request: Request) {
     console.log('=== VOCAB BATCH DEBUG ===');
     console.log(`📅 Today's date: ${today}`);
 
-    // Step 1: Get progress records due today (indexed query - fast)
+    // Step 1: Get ALL progress records due today (NO limit yet)
     const progressQuery = supabase
       .from('user_vocab_progress')
       .select('vocab_id, fluency, next_due')
       .eq('user_id', user.id)
       .lte('next_due', today)
       .order('next_due', { ascending: true })
-      .order('fluency', { ascending: true })
-      .limit(10);
+      .order('fluency', { ascending: true });
 
     const { data: progressWords, error: progressError } = await progressQuery;
 
@@ -104,7 +103,7 @@ export async function GET(request: Request) {
     const progressMap = new Map(progressWords.map(p => [p.vocab_id, p]) || []);
 
     // Step 4: Merge data in memory (skip filtered-out vocab)
-    const words = vocabIds
+    const allWords = vocabIds
       .map(vocabId => {
         const vocab = vocabMap.get(vocabId);
         const progress = progressMap.get(vocabId);
@@ -123,7 +122,10 @@ export async function GET(request: Request) {
       })
       .filter(Boolean);
 
-    console.log(`📊 Final batch: ${words.length} words (after filters)`);
+    // Step 5: Apply limit AFTER all filtering
+    const words = allWords.slice(0, 10);
+
+    console.log(`📊 Final batch: ${words.length} words (after filters and limit)`);
 
     return NextResponse.json({
       success: true,

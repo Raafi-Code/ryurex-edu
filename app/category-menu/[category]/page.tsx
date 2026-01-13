@@ -149,6 +149,11 @@ export default function CategoryMenuPage() {
     }
   };
 
+  const handlePlayCategoryVocab = () => {
+    // New feature: Play vocab with category filter (due today words from this category)
+    router.push(`/vocab?category=${encodeURIComponent(categoryName)}`);
+  };
+
   const handlePlayAiMode = () => {
     if (selectedSubcategory !== null) {
       router.push(`/ai-mode?category=${encodeURIComponent(categoryName)}&subcategory=${selectedSubcategory}`);
@@ -348,6 +353,15 @@ export default function CategoryMenuPage() {
 
               {/* Play Buttons */}
               <div className="space-y-3">
+                {/* Category Vocab Mode Button - Due Today words from this category */}
+                <button
+                  onClick={handlePlayCategoryVocab}
+                  className="w-full py-4 rounded-2xl font-bold text-body-lg flex items-center justify-center gap-3 transition-all cursor-pointer bg-primary-yellow text-black hover:scale-105 hover:shadow-lg"
+                >
+                  <Play className="w-5 h-5" />
+                  Play Category Vocab
+                </button>
+
                 {/* Vocab Mode Button */}
                 <button
                   onClick={handlePlayVocab}

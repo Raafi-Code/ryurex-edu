@@ -22,6 +22,8 @@ interface GameResult {
   correct: boolean;
   hintClickCount: number;
   userAnswer: string;
+  // Store the full question data to prevent lookup issues
+  questionData?: AiSentenceWord;
 }
 
 export default function AiModeContent() {
@@ -42,6 +44,7 @@ export default function AiModeContent() {
   const [loadingMessage, setLoadingMessage] = useState('Initializing AI Mode...');
   const [showResultModal, setShowResultModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewIndex, setReviewIndex] = useState(0); // Track current review item
   const [isSubmittingResults, setIsSubmittingResults] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,6 +60,7 @@ export default function AiModeContent() {
     setIsLoading(true);
     setShowResultModal(false);
     setShowReviewModal(false);
+    setReviewIndex(0);
     setIsSubmittingResults(false);
     setError(null);
   }, [category, subcategory]);
@@ -254,6 +258,7 @@ export default function AiModeContent() {
       correct: isCorrect,
       hintClickCount,
       userAnswer: userAnswer.trim(),
+      questionData: currentSentence, // Store full question data
     };
     setGameResults((prev) => [...prev, result]);
 
@@ -467,7 +472,12 @@ export default function AiModeContent() {
               {/* Review Button */}
               {wrongAnswers.length > 0 && (
                 <button
-                  onClick={() => setShowReviewModal(!showReviewModal)}
+                  onClick={() => {
+                    setShowReviewModal(!showReviewModal);
+                    if (showReviewModal) {
+                      setReviewIndex(0);
+                    }
+                  }}
                   className="w-full py-3 sm:py-4 rounded-2xl font-bold text-body-sm sm:text-body-lg text-black bg-primary-yellow hover:opacity-90 transition-opacity cursor-pointer flex items-center justify-center gap-2"
                 >
                   <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -478,7 +488,7 @@ export default function AiModeContent() {
             </div>
           </motion.div>
 
-          {/* Review Section - Expandable */}
+          {/* Review Section - Expandable Carousel */}
           <AnimatePresence>
             {showReviewModal && wrongAnswers.length > 0 && (
               <motion.div
@@ -489,51 +499,117 @@ export default function AiModeContent() {
                 className="mt-6 overflow-hidden"
               >
                 <div className="bg-card border-2 border-theme rounded-2xl p-4 sm:p-6">
-                  <h3 className="text-heading-3 font-bold text-primary-yellow mb-6">
-                    Review: Wrong Answers ({wrongAnswers.length})
-                  </h3>
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-heading-3 font-bold text-primary-yellow">
+                      Review: Wrong Answers
+                    </h3>
+                    <p className="text-label text-text-secondary font-medium">
+                      {reviewIndex + 1} / {wrongAnswers.length}
+                    </p>
+                  </div>
 
-                  <div className="space-y-4">
-                    {wrongAnswers.map((wrongResult, idx) => {
-                      const originalQuestion = sentences.find((s) => s.id === wrongResult.vocab_id);
-                      if (!originalQuestion) return null;
+                  {/* Carousel Container */}
+                  <div className="relative">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={reviewIndex}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.3 }}
+                        className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 sm:p-5"
+                      >
+                        {(() => {
+                          const wrongResult = wrongAnswers[reviewIndex];
+                          
+                          // First try to use stored question data, then fallback to lookup
+                          let originalQuestion = wrongResult.questionData;
+                          
+                          if (!originalQuestion) {
+                            originalQuestion = sentences.find((s) => s.id === wrongResult.vocab_id);
+                          }
 
-                      return (
-                        <motion.div
-                          key={idx}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.08 * idx }}
-                          className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 sm:p-5 hover:border-red-500/50 transition-colors"
-                        >
-                          <div>
-                            {/* Indonesian Sentence */}
-                            <p className="text-body-sm sm:text-body-lg text-text-primary font-medium mb-4 leading-relaxed">
-                              {originalQuestion.sentence_indo}
-                            </p>
+                          if (!originalQuestion) {
+                            console.warn(`❌ Question with vocab_id ${wrongResult.vocab_id} not found. Wrong answer: ${wrongResult.userAnswer}`);
+                            return (
+                              <div className="text-center py-8">
+                                <p className="text-text-secondary">Question data not found</p>
+                              </div>
+                            );
+                          }
 
-                            {/* Comparison Grid */}
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-                              {/* Your Answer */}
-                              <div className="bg-orange-100 dark:bg-orange-950 rounded-lg p-3 sm:p-4 border-l-3 border-orange-500">
-                                <p className="text-label text-orange-700 dark:text-orange-400 font-bold uppercase mb-1">Jawaban Kamu</p>
-                                <p className="text-label text-orange-900 dark:text-orange-300 break-words font-mono leading-relaxed">
-                                  {wrongResult.userAnswer || '(empty)'}
-                                </p>
+                          return (
+                            <div>
+                              {/* Indonesian Sentence */}
+                              <p className="text-body-sm sm:text-body-lg text-text-primary font-medium mb-4 leading-relaxed">
+                                {originalQuestion.sentence_indo}
+                              </p>
+
+                              {/* Word Badge - Highlight the vocab word */}
+                              <div className="mb-4 flex items-center gap-2 flex-wrap">
+                                <p className="text-label text-text-secondary font-medium">Vocabulary:</p>
+                                <span className="inline-block bg-primary-yellow text-black px-3 py-1 rounded font-semibold text-body-sm">
+                                  {originalQuestion.indo}
+                                </span>
                               </div>
 
-                              {/* Correct Answer */}
-                              <div className="bg-green-100 dark:bg-green-950 rounded-lg p-3 sm:p-4 border-l-3 border-green-500">
-                                <p className="text-label text-green-700 dark:text-green-400 font-bold uppercase mb-1">Jawaban Benar</p>
-                                <p className="text-label text-green-900 dark:text-green-300 break-words font-mono leading-relaxed">
-                                  {originalQuestion.sentence_english}
-                                </p>
+                              {/* Comparison Grid */}
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+                                {/* Your Answer */}
+                                <div className="bg-orange-100 dark:bg-orange-950 rounded-lg p-3 sm:p-4 border-l-3 border-orange-500">
+                                  <p className="text-label text-orange-700 dark:text-orange-400 font-bold uppercase mb-1">Jawaban Kamu</p>
+                                  <p className="text-body-sm text-orange-900 dark:text-orange-300 break-words font-mono leading-relaxed min-h-[2.5rem] flex items-center">
+                                    {wrongResult.userAnswer || '(empty)'}
+                                  </p>
+                                </div>
+
+                                {/* Correct Answer */}
+                                <div className="bg-green-100 dark:bg-green-950 rounded-lg p-3 sm:p-4 border-l-3 border-green-500">
+                                  <p className="text-label text-green-700 dark:text-green-400 font-bold uppercase mb-1">Jawaban Benar</p>
+                                  <p className="text-body-sm text-green-900 dark:text-green-300 break-words font-mono leading-relaxed min-h-[2.5rem] flex items-center">
+                                    {originalQuestion.sentence_english}
+                                  </p>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
+                          );
+                        })()}
+                      </motion.div>
+                    </AnimatePresence>
+
+                    {/* Navigation Buttons */}
+                    <div className="flex items-center justify-between gap-4 mt-6">
+                      <button
+                        onClick={() => setReviewIndex((prev) => (prev === 0 ? wrongAnswers.length - 1 : prev - 1))}
+                        disabled={wrongAnswers.length <= 1}
+                        className="flex-shrink-0 p-2 sm:p-3 rounded-lg bg-primary-yellow text-black hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        <ChevronDown className="w-5 h-5 sm:w-6 sm:h-6 rotate-90" />
+                      </button>
+
+                      {/* Dots Indicator */}
+                      <div className="flex-1 flex items-center justify-center gap-2 flex-wrap">
+                        {wrongAnswers.map((_, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setReviewIndex(idx)}
+                            className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full transition-all cursor-pointer ${
+                              idx === reviewIndex
+                                ? 'bg-primary-yellow w-6 sm:w-8'
+                                : 'bg-text-secondary/30 hover:bg-text-secondary/50'
+                            }`}
+                          />
+                        ))}
+                      </div>
+
+                      <button
+                        onClick={() => setReviewIndex((prev) => (prev === wrongAnswers.length - 1 ? 0 : prev + 1))}
+                        disabled={wrongAnswers.length <= 1}
+                        className="flex-shrink-0 p-2 sm:p-3 rounded-lg bg-primary-yellow text-black hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        <ChevronDown className="w-5 h-5 sm:w-6 sm:h-6 -rotate-90" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </motion.div>

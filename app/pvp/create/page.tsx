@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Play, Clock } from 'lucide-react';
+import { ArrowLeft, Play, Clock, Search } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import ThemeToggle from '@/components/ThemeToggle';
 
@@ -29,6 +29,8 @@ export default function CreateLobbyPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const [formData, setFormData] = useState<FormData>({
     category: '',
@@ -282,18 +284,79 @@ export default function CreateLobbyPage() {
               {/* Section 1: Choose Category */}
               <div className="bg-card rounded-2xl p-6 border border-theme">
                 <h2 className="text-xl font-bold mb-4">Choose Category</h2>
-                <select
-                  value={formData.category}
-                  onChange={(e) => handleFormChange('category', e.target.value)}
-                  className="w-full px-4 py-3 bg-input border border-input rounded-lg text-foreground focus:outline-none focus:border-primary-yellow transition-colors cursor-pointer appearance-none"
-                >
-                  <option value="">Select a category...</option>
-                  {categories.map(cat => (
-                    <option key={cat.name} value={cat.name}>
-                      {cat.name} ({cat.count} words)
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  {/* Search Input */}
+                  <div className="relative mb-2">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      placeholder="Search categories..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onFocus={() => setIsDropdownOpen(true)}
+                      className="w-full pl-10 pr-4 py-2 bg-input border border-input rounded-lg text-foreground focus:outline-none focus:border-primary-yellow transition-colors"
+                    />
+                  </div>
+
+                  {/* Dropdown List */}
+                  {isDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="absolute z-50 w-full mt-1 bg-card border border-theme rounded-lg shadow-lg max-h-64 overflow-y-auto"
+                    >
+                      {categories
+                        .filter(cat =>
+                          cat.name.toLowerCase().includes(searchQuery.toLowerCase())
+                        )
+                        .map(cat => (
+                          <button
+                            key={cat.name}
+                            type="button"
+                            onClick={() => {
+                              handleFormChange('category', cat.name);
+                              setSearchQuery('');
+                              setIsDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-4 py-3 hover:bg-primary-yellow/10 transition-colors border-b border-theme last:border-b-0 cursor-pointer ${
+                              formData.category === cat.name
+                                ? 'bg-primary-yellow/20 text-primary-yellow font-semibold'
+                                : 'text-foreground'
+                            }`}
+                          >
+                            <div className="font-medium">{cat.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {cat.count} words
+                            </div>
+                          </button>
+                        ))}
+                      {categories.filter(cat =>
+                        cat.name.toLowerCase().includes(searchQuery.toLowerCase())
+                      ).length === 0 && (
+                        <div className="px-4 py-3 text-center text-muted-foreground text-sm">
+                          No categories found
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {/* Selected Category Display */}
+                  {formData.category && !isDropdownOpen && (
+                    <div className="px-4 py-2 bg-input border border-input rounded-lg text-foreground">
+                      {categories.find(c => c.name === formData.category)?.name} (
+                      {categories.find(c => c.name === formData.category)?.count} words)
+                    </div>
+                  )}
+
+                  {/* Close dropdown on outside click */}
+                  {isDropdownOpen && (
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsDropdownOpen(false)}
+                    />
+                  )}
+                </div>
                 {errors.category && (
                   <p className="text-red-400 text-sm mt-2">{errors.category}</p>
                 )}
