@@ -7,7 +7,7 @@ Allow: /forgot-password
 
 # Disallow authenticated pages
 Disallow: /dashboard
-Disallow: /vocab
+Disallow: /review-mode
 Disallow: /vocabgame
 Disallow: /category-menu
 Disallow: /update-password

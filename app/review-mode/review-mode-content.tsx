@@ -7,7 +7,7 @@ import { Clock, CheckCircle2, XCircle, Lightbulb, ArrowLeft } from 'lucide-react
 import ThemeToggle from '@/components/ThemeToggle';
 import { useTheme } from '@/context/ThemeContext';
 
-interface VocabWord {
+interface Word {
   vocab_id: number;
   indo: string;
   english: string;
@@ -23,13 +23,13 @@ interface GameResult {
   time_taken: number;
 }
 
-export default function VocabContent() {
+export default function ReviewModeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const categoryFilter = searchParams.get('category');
 
   // Game state
-  const [words, setWords] = useState<VocabWord[]>([]);
+  const [words, setWords] = useState<Word[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
   const [timer, setTimer] = useState(0);
@@ -209,7 +209,7 @@ export default function VocabContent() {
       const response = await fetch('/api/submitBatch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ results, mode: 'practice' }),
+        body: JSON.stringify({ results, mode: 'spaced-repetition' }),
       });
 
       if (!response.ok) {
@@ -630,10 +630,12 @@ function ResultModal({
   const accuracy = ((correctCount / results.length) * 100).toFixed(0);
   const avgTime = (results.reduce((sum, r) => sum + r.time_taken, 0) / results.length).toFixed(1);
   
-  // Calculate XP gained
+  // Calculate XP gained (with bonus for very fast answers)
   const xpGained = results.reduce((sum, r) => {
-    if (!r.correct) return sum; // Wrong answer: 0 XP
-    return sum + (r.time_taken < 10 ? 10 : 5); // Fast: 10 XP, Slow: 5 XP
+    if (!r.correct) return sum; // Wrong or reset: 0 XP
+    if (r.time_taken <= 5) return sum + 15; // ⚡ Very fast: 15 XP
+    if (r.time_taken < 10) return sum + 10; // 🔥 Fast: 10 XP
+    return sum; // ⏱️ Slow or reset: 0 XP
   }, 0);
 
   return (

@@ -1,9 +1,9 @@
 'use client';
 
 import { Suspense } from 'react';
-import VocabContent from './vocab-content';
+import ReviewModeContent from './review-mode-content';
 
-export default function VocabPage() {
+export default function ReviewModePage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -13,7 +13,7 @@ export default function VocabPage() {
         </div>
       </div>
     }>
-      <VocabContent />
+      <ReviewModeContent />
     </Suspense>
   );
 }

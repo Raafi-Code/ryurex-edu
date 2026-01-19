@@ -1,5 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowRight, BookOpen, Target, Zap, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
@@ -7,8 +10,34 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import AnimatedBackground from '@/components/AnimatedBackground';
 import StructuredData from '@/components/StructuredData';
+import LoadingScreen from '@/components/LoadingScreen';
 
 export default function Home() {
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const router = useRouter();
+  const supabase = createClient();
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          router.push('/dashboard');
+        }
+      } catch (error) {
+        console.error('Auth check error:', error);
+      } finally {
+        setCheckingAuth(false);
+      }
+    };
+
+    checkAuth();
+  }, [router, supabase]);
+
+  if (checkingAuth) {
+    return <LoadingScreen title="Checking authentication..." />;
+  }
+
   const features = [
     {
       icon: BookOpen,

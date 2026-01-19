@@ -63,47 +63,65 @@ export async function POST(request: NextRequest) {
       const isPreviouslyStudied = !!currentProgress;
       const isNextDueToday = !isPreviouslyStudied || currentProgress.next_due === todayStr;
 
-      // HYBRID FORMULA: Linear for low fluency, exponential after fluency 3
-      // Rule: if f ≤ 2 → days = f
-      //       if f ≥ 3 → days = round(7 × 1.7^(f−3))
+      // IMPROVED HYBRID FORMULA: Aggressive progression with time-based rewards
+      // Updated Rule: if f = 0 → days = 0
+      //               if f = 1 → days = 1
+      //               if f = 2 → days = 3 (changed from 2)
+      //               if f ≥ 3 → days = round(7 × 1.7^(f−3))
       let fluencyChange = 0;
       let daysUntilNext = 0;
+      let newFluency = 0;
       
-      if (correct && time_taken < 10) {
-        // FAST CORRECT (<10s) - User is fluent!
-        // In PRACTICE mode: ALWAYS increase fluency
-        // In SPACED-REPETITION mode: Only increase if next_due is today (locked system)
+      if (correct && time_taken <= 5) {
+        // ⚡ VERY FAST (≤5s) - Double progression!
         if (mode === 'practice' || isNextDueToday) {
-          fluencyChange = +1; // Gradual: +1 only
+          fluencyChange = +2; // Big jump!
         } else {
           fluencyChange = 0; // Don't increase fluency if not due today (locked)
         }
         
-        const newFluency = Math.max(0, Math.min(10, currentProgress.fluency + fluencyChange));
+        newFluency = Math.max(0, Math.min(10, currentProgress.fluency + fluencyChange));
         
-        // Apply hybrid formula based on NEW fluency value
-        if (newFluency <= 2) {
-          daysUntilNext = newFluency; // f=0→0, f=1→1, f=2→2
+        if (newFluency === 0) {
+          daysUntilNext = 0;
+        } else if (newFluency === 1) {
+          daysUntilNext = 1;
+        } else if (newFluency === 2) {
+          daysUntilNext = 3; // CHANGED from 2 to 3
         } else {
           daysUntilNext = Math.round(7 * Math.pow(1.7, newFluency - 3));
-          // f=3→7, f=4→12, f=5→20, f=6→34, f=7→58, f=8→99, f=9→168, f=10→285
+        }
+        
+      } else if (correct && time_taken > 5 && time_taken < 10) {
+        // 🔥 FAST (5-10s) - Normal progression
+        if (mode === 'practice' || isNextDueToday) {
+          fluencyChange = +1; // Normal progression
+        } else {
+          fluencyChange = 0; // Don't increase fluency if not due today (locked)
+        }
+        
+        newFluency = Math.max(0, Math.min(10, currentProgress.fluency + fluencyChange));
+        
+        if (newFluency === 0) {
+          daysUntilNext = 0;
+        } else if (newFluency === 1) {
+          daysUntilNext = 1;
+        } else if (newFluency === 2) {
+          daysUntilNext = 3;
+        } else {
+          daysUntilNext = Math.round(7 * Math.pow(1.7, newFluency - 3));
         }
         
       } else if (correct && time_taken >= 10) {
-        // SLOW CORRECT (≥10s) - User not fluent yet
-        // ALWAYS decrease fluency regardless of next_due
-        fluencyChange = -1; // Penalty for slow
+        // ⏱️ SLOW CORRECT (≥10s) - RESET!
+        newFluency = 0; // RESET to 0
         daysUntilNext = 0; // Force review TODAY
         
       } else {
-        // WRONG - User doesn't know it
-        // ALWAYS decrease fluency regardless of next_due
-        fluencyChange = -1;
+        // ❌ WRONG - RESET!
+        newFluency = 0; // RESET to 0
         daysUntilNext = 0; // Force review TODAY
       }
-
-      // Update fluency (min 0, max 10)
-      const newFluency = Math.max(0, Math.min(10, currentProgress.fluency + fluencyChange));
 
       // Calculate next due date
       let nextDueDate;
@@ -118,16 +136,18 @@ export async function POST(request: NextRequest) {
         nextDueDate = date.toISOString().split('T')[0];
       }
 
-      // Calculate XP gain
+      // Calculate XP gain (with bonus for very fast answers)
       let xpGain = 0;
       if (correct) {
-        if (time_taken < 10) {
-          xpGain = 10; // Fast correct: 10 XP
+        if (time_taken <= 5) {
+          xpGain = 15; // ⚡ Very fast: 15 XP (bonus!)
+        } else if (time_taken < 10) {
+          xpGain = 10; // 🔥 Fast correct: 10 XP
         } else {
-          xpGain = 5;  // Slow correct: 5 XP
+          xpGain = 5;  // ⏱️ Slow correct: 5 XP
         }
       }
-      // Wrong answer: 0 XP
+      // ❌ Wrong answer or ≥10s reset: 0 XP
 
       totalXpGained += xpGain;
 

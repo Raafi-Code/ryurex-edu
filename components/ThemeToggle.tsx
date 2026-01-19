@@ -12,7 +12,7 @@ export default function ThemeToggle() {
       whileHover={{ scale: 1.1 }}
       whileTap={{ scale: 0.9 }}
       onClick={toggleTheme}
-      className="relative p-2 rounded-lg bg-card border border-theme hover:border-[#E2B714]/50 transition-all"
+      className="relative p-2 rounded-lg bg-card border border-theme hover:border-[#E2B714]/50 transition-all cursor-pointer"
       aria-label="Toggle theme"
     >
       <div className="relative w-6 h-6">

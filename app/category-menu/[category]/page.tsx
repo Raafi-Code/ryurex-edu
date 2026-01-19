@@ -4,10 +4,12 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Play, LogOut } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import ThemeToggle from '@/components/ThemeToggle';
+import CompactNavbar from '@/components/CompactNavbar';
+import Pagination from '@/components/Pagination';
 import ScrollToTopButton from '@/components/ScrollToTopButton';
+import { useTheme } from '@/context/ThemeContext';
 
 // Helper function to convert 'a1-oxford' to 'A1 Oxford'
 const formatCategoryName = (category: string): string => {
@@ -27,6 +29,12 @@ interface CategoryData {
   category: string;
   total_words: number;
   subcategories: Subcategory[];
+}
+
+interface VocabItem {
+  id: number;
+  english: string;
+  indo: string;
 }
 
 // Category image mapping (use same images as dashboard)
@@ -71,7 +79,33 @@ export default function CategoryMenuPage() {
 
   const [categoryData, setCategoryData] = useState<CategoryData | null>(null);
   const [selectedSubcategory, setSelectedSubcategory] = useState<number | null>(null);
+  const [vocabList, setVocabList] = useState<VocabItem[]>([]);
+  const [reviewModeCount, setReviewModeCount] = useState(0);
+  const [categoryProgress, setCategoryProgress] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [partsPerPage, setPartsPerPage] = useState(6); // Default for mobile (3 cols × 2 rows)
+  const { theme } = useTheme();
+
+  // Calculate responsive parts per page based on screen size
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        // Desktop: 5 cols × 3 rows = 15 cards
+        setPartsPerPage(15);
+      } else if (window.innerWidth >= 768) {
+        // Tablet: 4 cols × 2 rows = 8 cards
+        setPartsPerPage(8);
+      } else {
+        // Mobile: 3 cols × 2 rows = 6 cards
+        setPartsPerPage(6);
+      }
+    };
+
+    handleResize(); // Call on mount
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const fetchCategoryData = useCallback(async () => {
     try {
@@ -123,6 +157,47 @@ export default function CategoryMenuPage() {
         }
       
       setCategoryData(data);
+
+      // Calculate category progress
+      const totalLearned = data.subcategories.reduce((sum: number, sub: Subcategory) => sum + (sub.learned_count || 0), 0);
+      const categoryProgressPercent = data.total_words > 0 ? (totalLearned / data.total_words) * 100 : 0;
+      setCategoryProgress(categoryProgressPercent);
+
+      // Fetch review mode count (words due today from THIS category only)
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          // Get current date
+          const today = new Date().toISOString().split('T')[0];
+          
+          // Fetch vocab items that are due today from this category
+          // Step 1: Get all vocab IDs from this category
+          const { data: categoryVocabIds } = await supabase
+            .from('vocab_master')
+            .select('id')
+            .eq('category', categoryName);
+
+          if (categoryVocabIds && categoryVocabIds.length > 0) {
+            const vocabIdList = categoryVocabIds.map(v => v.id);
+            
+            // Step 2: Count vocab_progress entries that are due today and belong to this category
+            const { data: dueVocabData, error } = await supabase
+              .from('user_vocab_progress')
+              .select('id')
+              .eq('user_id', user.id)
+              .lte('next_due', today)
+              .in('vocab_id', vocabIdList);
+
+            if (!error && dueVocabData) {
+              setReviewModeCount(dueVocabData.length);
+            }
+          } else {
+            setReviewModeCount(0);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching review mode count:', error);
+      }
     } catch (error) {
       console.error('Error fetching category data:', error);
       router.push('/dashboard');
@@ -136,6 +211,32 @@ export default function CategoryMenuPage() {
       fetchCategoryData();
     }
   }, [categoryName, fetchCategoryData]);
+
+  useEffect(() => {
+    const fetchVocabList = async () => {
+      if (selectedSubcategory !== null && categoryName) {
+        try {
+          const { data: vocabData } = await supabase
+            .from('vocab_master')
+            .select('id, english, indo')
+            .eq('category', categoryName)
+            .eq('subcategory', selectedSubcategory)
+            .order('english', { ascending: true });
+          
+          if (vocabData) {
+            setVocabList(vocabData);
+          }
+        } catch (error) {
+          console.error('Error fetching vocab list:', error);
+          setVocabList([]);
+        }
+      } else {
+        setVocabList([]);
+      }
+    };
+    
+    fetchVocabList();
+  }, [selectedSubcategory, categoryName, supabase]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -151,7 +252,7 @@ export default function CategoryMenuPage() {
 
   const handlePlayCategoryVocab = () => {
     // New feature: Play vocab with category filter (due today words from this category)
-    router.push(`/vocab?category=${encodeURIComponent(categoryName)}`);
+    router.push(`/review-mode?category=${encodeURIComponent(categoryName)}`);
   };
 
   const handlePlayAiMode = () => {
@@ -202,131 +303,193 @@ export default function CategoryMenuPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Navbar */}
-      <div className="border-b border-text-secondary/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            {/* Back Button */}
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="flex items-center gap-2 text-text-secondary hover:text-primary-yellow hover:font-semibold transition-colors cursor-pointer"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span>Back to Dashboard</span>
-            </button>
+      <CompactNavbar title={categoryData ? formatCategoryName(categoryData.category) : ''} showBackButton={true} />
 
-            {/* Right Side Actions */}
-            <div className="flex items-center space-x-3">
-              <ThemeToggle />
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Main Content */}
+      <div className={`px-4 sm:px-6 lg:px-8 pt-18 pb-12`}>
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-4">
+            {/* Left Side - Subcategory Cards */}
+            <div className="md:col-span-1 lg:col-span-5 space-y-3">
+              {/* Cards Row 1: Review, Progress, Total Words - Responsive Layout */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Card 1: Review Mode Info & Button (Full width on mobile/tablet, 50% on desktop) */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="col-span-2 bg-card rounded-2xl p-4 shadow-lg"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs text-text-secondary mb-1">Words to Review Today</div>
+                      <div className="text-2xl font-bold text-primary-yellow">{reviewModeCount}</div>
+                    </div>
+                    <button
+                      onClick={handlePlayCategoryVocab}
+                      className="py-2 px-4 rounded-lg font-semibold text-sm bg-primary-yellow text-black hover:scale-105 hover:shadow-lg transition-all cursor-pointer"
+                    >
+                      <Play className="w-4 h-4 inline mr-1" />
+                      Review Mode
+                    </button>
+                  </div>
+                </motion.div>
 
-      {/* Mobile Floating Action Buttons */}
-      {selectedSubcategory !== null && (
-        <motion.div
-          initial={{ y: 100, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 100, opacity: 0 }}
-          className="lg:hidden fixed bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background/95 to-background/0 pt-4 pb-6 px-4 space-y-3 z-30"
-        >
-          {/* Vocab Mode Button */}
-          <button
-            onClick={handlePlayVocab}
-            className="w-full py-4 rounded-2xl font-bold text-body-lg flex items-center justify-center gap-3 transition-all cursor-pointer bg-primary-yellow text-black border-2 border-black hover:scale-105 hover:shadow-lg active:scale-95"
-          >
-            <Play className="w-5 h-5" />
-            Play Vocab Mode
-          </button>
+                {/* Card 2: Category Progress (50% on mobile/tablet, 25% on desktop) */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="col-span-1 bg-card rounded-2xl p-3 shadow-lg"
+                >
+                  <div className="text-center">
+                    <div className="relative w-16 h-16 mx-auto mb-2">
+                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="8" className="text-background/50" />
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="45"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="8"
+                          className="text-primary-yellow transition-all"
+                          strokeDasharray={`${(categoryProgress / 100) * 282.7} 282.7`}
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-sm font-bold text-text-primary">{Math.round(categoryProgress)}%</span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-text-secondary">Category Progress</div>
+                  </div>
+                </motion.div>
 
-          {/* AI Mode Button */}
-          <button
-            onClick={handlePlayAiMode}
-            className="w-full py-4 rounded-2xl font-bold text-body-lg flex items-center justify-center gap-3 transition-all cursor-pointer bg-black dark:bg-white text-white dark:text-black border-2 border-black dark:border-white hover:scale-105 hover:shadow-lg active:scale-95"
-          >
-            <Play className="w-5 h-5" />
-            Play AI Mode
-          </button>
-        </motion.div>
-      )}
+                {/* Card 3: Words Learned vs Total (50% on mobile/tablet, 25% on desktop) */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="col-span-1 bg-card rounded-2xl p-3 shadow-lg"
+                >
+                  <div className="text-center">
+                    <div className="relative w-16 h-16 mx-auto mb-2">
+                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="8" className="text-background/50" />
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="45"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="8"
+                          className="text-primary-yellow transition-all"
+                          strokeDasharray={`${(categoryProgress / 100) * 282.7} 282.7`}
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-xs font-bold text-text-primary">{categoryData ? categoryData.subcategories.reduce((sum: number, sub: Subcategory) => sum + (sub.learned_count || 0), 0) : 0}/{categoryData?.total_words || 0}</span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-text-secondary">Words Learned</div>
+                  </div>
+                </motion.div>
+              </div>
 
-      {/* Main Content - Add padding-bottom for mobile floating buttons */}
-      <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 ${selectedSubcategory !== null ? 'lg:pb-12 pb-40' : 'pb-12'}`}>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Side - Subcategory Cards */}
-          <div className="lg:col-span-2 space-y-4">
-            <h2 className="text-heading-2 text-text-primary mb-6">
+            <h2 className="text-heading-3 text-text-primary mb-4">
               Choose a Part
             </h2>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {categoryData.subcategories.map((sub, index) => {
-                const learnedCount = sub.learned_count || 0;
-                const totalWords = sub.word_count;
-                const progressPercentage = totalWords > 0 ? (learnedCount / totalWords) * 100 : 0;
-                
-                return (
-                  <motion.button
-                    key={sub.subcategory}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    onClick={() => setSelectedSubcategory(sub.subcategory)}
-                    className={`p-6 rounded-2xl border-2 transition-all text-left cursor-pointer ${
-                      selectedSubcategory === sub.subcategory
-                        ? 'bg-primary-yellow border-primary-yellow text-black scale-105 shadow-lg'
-                        : 'bg-primary-yellow border-primary-yellow text-black hover:scale-102 hover:shadow-md'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-heading-3 font-bold">
-                        Part {sub.subcategory}
-                      </h3>
-                      {selectedSubcategory === sub.subcategory && (
-                        <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center">
-                          <svg className="w-4 h-4 text-primary-yellow" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                      )}
-                    </div>
-                    <p className={`text-label mb-3 ${
-                      selectedSubcategory === sub.subcategory ? 'text-black/70 font-medium' : 'text-black/60'
-                    }`}>
-                      {sub.word_count} words
-                    </p>
-                    
-                    {/* Progress Bar */}
-                    <div className="space-y-1">
-                      <div className="w-full bg-black/20 rounded-full h-2 overflow-hidden">
-                        <div 
-                          className="bg-black h-full rounded-full transition-all duration-300"
-                          style={{ width: `${progressPercentage}%` }}
-                        />
-                      </div>
-                      <p className={`text-label text-xs ${
-                        selectedSubcategory === sub.subcategory ? 'text-black/60 font-medium' : 'text-black/50'
-                      }`}>
-                        {learnedCount} of {totalWords} learned ({Math.round(progressPercentage)}%)
-                      </p>
-                    </div>
-                  </motion.button>
-                );
-              })}
-            </div>
+            {(() => {
+              // Calculate pagination based on responsive partsPerPage
+              const totalPages = Math.ceil(categoryData.subcategories.length / partsPerPage);
+              const startIdx = (currentPage - 1) * partsPerPage;
+              const paginatedParts = categoryData.subcategories.slice(startIdx, startIdx + partsPerPage);
+
+              return (
+                <div>
+                  <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {paginatedParts.map((sub, index) => {
+                      const learnedCount = sub.learned_count || 0;
+                      const totalWords = sub.word_count;
+                      const progressPercentage = totalWords > 0 ? (learnedCount / totalWords) * 100 : 0;
+                      
+                      return (
+                        <motion.button
+                          key={sub.subcategory}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          onClick={() => setSelectedSubcategory(sub.subcategory)}
+                          className={`p-4 rounded-xl border-2 transition-all text-left cursor-pointer ${
+                            selectedSubcategory === sub.subcategory
+                              ? 'bg-primary-yellow border-primary-yellow text-black scale-105 shadow-lg'
+                              : 'bg-primary-yellow border-primary-yellow text-black hover:scale-102 hover:shadow-md'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <h3 className="text-label font-bold">
+                              Part {sub.subcategory}
+                            </h3>
+                            {selectedSubcategory === sub.subcategory && (
+                              <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center">
+                                <svg className="w-4 h-4 text-primary-yellow" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                          <p className={`text-xs mb-2 ${
+                            selectedSubcategory === sub.subcategory ? 'text-black/70 font-medium' : 'text-black/60'
+                          }`}>
+                            {sub.word_count} words
+                          </p>
+                          
+                          {/* Progress Bar */}
+                          <div className="space-y-0.5">
+                            <div className="w-full bg-black/20 rounded-full h-1.5 overflow-hidden">
+                              <div 
+                                className="bg-black h-full rounded-full transition-all duration-300"
+                                style={{ width: `${progressPercentage}%` }}
+                              />
+                            </div>
+                            <p className={`text-xs hidden sm:block ${
+                              selectedSubcategory === sub.subcategory ? 'text-black/60 font-medium' : 'text-black/50'
+                            }`}>
+                              {learnedCount}/{totalWords} ({Math.round(progressPercentage)}%)
+                            </p>
+                          </div>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Pagination Controls */}
+                  {totalPages > 1 && (
+                    <Pagination 
+                      currentPage={currentPage} 
+                      totalPages={totalPages} 
+                      onPageChange={setCurrentPage}
+                    />
+                  )}
+                </div>
+              );
+            })()}
+            
           </div>
 
-          {/* Right Side - Category Info & Play Buttons */}
-          <div className="hidden lg:block lg:col-span-1">
-            <div className="sticky top-8 space-y-6">
-              {/* Category Card */}
-              <motion.div
+          {/* Right Side - Category Info & Play Buttons - Responsive */}
+          <div className="md:col-span-1 lg:col-span-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {/* Category Card - Hidden on mobile, Full width on tablet, 50% on desktop */}
+              <div className="col-span-1 hidden md:block">
+                {/* Category Card */}
+                <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="bg-card border-2 border-theme rounded-2xl overflow-hidden"
+                className="bg-card rounded-2xl overflow-hidden shadow-lg"
               >
                 {/* Image/Icon */}
-                <div className="relative w-full aspect-square bg-gradient-to-br from-primary-yellow-light to-secondary-purple-light flex items-center justify-center overflow-hidden">
+                <div className="relative w-full aspect-video bg-gradient-to-br from-primary-yellow-light to-secondary-purple-light flex items-center justify-center overflow-hidden">
                   <Image
                     src={categoryImages[categoryName.toLowerCase()] || '/images/categories/default.svg'}
                     alt={categoryName}
@@ -344,53 +507,45 @@ export default function CategoryMenuPage() {
                 </div>
 
                 {/* Content */}
-                <div className="p-6">
-                  <h2 className="text-heading-2 text-text-primary mb-2">
+                <div className="p-4">
+                  <h2 className="text-heading-3 text-text-primary mb-1">
                     {formatCategoryName(categoryName)}
                   </h2>
-                  <p className="text-body-lg text-text-secondary">
-                    {categoryData.total_words} words total
+                  <p className="text-body-sm text-text-secondary">
+                    {categoryData.total_words} words
                   </p>
-                  <p className="text-label text-text-secondary/60 mt-1">
-                    {categoryData.subcategories.length} parts available
+                  <p className="text-xs text-text-secondary/60 mt-0.5">
+                    {categoryData.subcategories.length} parts
                   </p>
                 </div>
-              </motion.div>
+                </motion.div>
+              </div>
 
-              {/* Play Buttons */}
-              <div className="space-y-3">
-                {/* Category Vocab Mode Button - Due Today words from this category */}
-                <button
-                  onClick={handlePlayCategoryVocab}
-                  className="w-full py-4 rounded-2xl font-bold text-body-lg flex items-center justify-center gap-3 transition-all cursor-pointer bg-primary-yellow text-black hover:scale-105 hover:shadow-lg"
-                >
-                  <Play className="w-5 h-5" />
-                  Play Category Vocab
-                </button>
-
+              {/* Buttons & Info - Full width on mobile/tablet, 50% on desktop */}
+              <div className="col-span-1 space-y-2 flex flex-col">
                 {/* Vocab Mode Button */}
                 <button
                   onClick={handlePlayVocab}
                   disabled={selectedSubcategory === null}
-                  className={`w-full py-4 rounded-2xl font-bold text-body-lg flex items-center justify-center gap-3 transition-all cursor-pointer ${
+                  className={`w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
                     selectedSubcategory !== null
                       ? 'bg-primary-yellow text-black hover:scale-105 hover:shadow-lg'
                       : 'bg-primary-yellow text-black opacity-50 cursor-not-allowed'
                   }`}
                 >
-                  <Play className="w-5 h-5" />
-                  Play Vocab Mode
+                  <Play className="w-4 h-4" />
+                  Vocab Mode
                 </button>
 
                 {/* AI Mode Button */}
                 {selectedSubcategory !== null && (
                   <button
                     onClick={handlePlayAiMode}
-                    className="w-full py-4 rounded-2xl font-bold text-body-lg flex items-center justify-center gap-3 transition-all cursor-pointer bg-secondary-purple text-white hover:scale-105 hover:shadow-lg"
+                    className="w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer bg-secondary-purple text-white hover:scale-105 hover:shadow-lg"
                   >
-                    <Play className="w-5 h-5" />
-                    <span>Play Sentence Mode</span>
-                    <span className="bg-primary-yellow text-black px-2 py-0.5 rounded text-label">AI</span>
+                    <Play className="w-4 h-4" />
+                    <span>Sentence Mode</span>
+                    <span className="bg-primary-yellow text-black px-1.5 py-0.5 rounded text-xs">AI</span>
                   </button>
                 )}
 
@@ -398,21 +553,50 @@ export default function CategoryMenuPage() {
                 {selectedSubcategory !== null && (
                   <button
                     onClick={handlePlaySentenceGame}
-                    className="w-full py-4 rounded-2xl font-bold text-body-lg flex items-center justify-center gap-3 transition-all cursor-pointer bg-secondary-purple text-white hover:scale-105 hover:shadow-lg"
+                    className="w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer bg-secondary-purple text-white hover:scale-105 hover:shadow-lg"
                   >
-                    <Play className="w-5 h-5" />
-                    <span>Play Sentence Click</span>
-                    <span className="bg-primary-yellow text-black px-2 py-0.5 rounded text-label">AI</span>
+                    <Play className="w-4 h-4" />
+                    <span>Sentence Click</span>
+                    <span className="bg-primary-yellow text-black px-1.5 py-0.5 rounded text-xs">AI</span>
                   </button>
                 )}
               </div>
 
               {/* Info Text */}
               {selectedSubcategory === null && (
-                <p className="text-center text-label text-text-secondary/60">
-                  👆 Select a part above to start playing
+                <p className="text-center text-xs text-text-secondary/60">
+                  👆 Select a part above
                 </p>
               )}
+
+              {/* Vocab List Table - Full width below both 50-50 cards */}
+              {selectedSubcategory !== null && vocabList.length > 0 && (
+                <div className="bg-card rounded-2xl overflow-hidden col-span-1 lg:col-span-2 mt-auto shadow-lg">
+                  <div className="bg-primary-yellow/20 px-3 py-2 border-b border-primary-yellow/20">
+                    <div className="text-sm font-semibold text-text-primary">
+                      Words in Part {selectedSubcategory}
+                    </div>
+                  </div>
+                  <div className="overflow-hidden">
+                    {vocabList.map((vocab, index) => (
+                      <div key={vocab.id} className={`px-3 py-1 flex ${index % 2 === 0 ? 'bg-background/50' : 'bg-background'}`}>
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-text-primary">
+                            {vocab.english}
+                          </div>
+                        </div>
+                        <div className="border-l border-primary-yellow/30\"></div>
+                        <div className="flex-1 pl-3">
+                          <div className="text-sm font-medium text-text-primary">
+                            {vocab.indo}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              </div>
             </div>
           </div>
         </div>

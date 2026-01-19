@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: ['/', '/login', '/signup', '/forgot-password'],
-        disallow: ['/dashboard', '/vocab', '/vocabgame', '/category-menu', '/update-password', '/api/'],
+        disallow: ['/dashboard', '/review-mode', '/vocabgame', '/category-menu', '/update-password', '/api/'],
         crawlDelay: 1,
       },
     ],

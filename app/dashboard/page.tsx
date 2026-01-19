@@ -5,12 +5,14 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart3, BookOpen, LogOut, Play, Clock, Search, Edit2, Zap, Menu, X, Sword, ChevronDown, Brain, ChevronLeft, ChevronRight, Flame } from 'lucide-react';
+import { BarChart3, BookOpen, LogOut, Play, Clock, Search, Edit2, Zap, Menu, X, Sword, ChevronDown, Brain, Flame } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import EditDisplayNameModal from '@/components/EditDisplayNameModal';
 import Leaderboard from '@/components/Leaderboard';
+import Pagination from '@/components/Pagination';
 import ScrollToTopButton from '@/components/ScrollToTopButton';
 import Footer from '@/components/Footer';
+import LoadingScreen from '@/components/LoadingScreen';
 import Image from 'next/image';
 import { useTheme } from '@/context/ThemeContext';
 
@@ -117,11 +119,7 @@ export default function DashboardPage() {
   );
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-primary text-body-lg">Loading...</div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -216,13 +214,13 @@ export default function DashboardPage() {
       </nav>
 
       {/* Main Content - Add padding-top untuk navbar fixed */}
-      <div className="flex-1 py-12 px-4 sm:px-6 lg:px-8 mt-16">
+      <div className="flex-1 py-6 px-4 sm:px-6 lg:px-8 mt-16">
         <div className="max-w-7xl mx-auto">
           {/* Welcome Section */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-12"
+            className="mb-6"
           >
             <div>
               <h1 className="text-heading-1 mb-2">
@@ -272,7 +270,7 @@ export default function DashboardPage() {
               {/* Icons */}
               <div className="flex gap-4">
                 {[
-                  { href: '/vocab', icon: Play, bg: 'bg-primary-yellow', text: 'text-black' },
+                  { href: '/review-mode', icon: Play, bg: 'bg-primary-yellow', text: 'text-black' },
                   { href: '/ai-mode/select', icon: Brain, bg: 'bg-secondary-purple', text: 'text-white' },
                   { href: '/pvp', icon: Sword, bg: 'bg-red-500/20', text: 'text-red-500' }
                 ].map((mode, index) => (
@@ -287,7 +285,7 @@ export default function DashboardPage() {
                         <mode.icon className={`w-6 h-6 md:w-7 md:h-7 ${mode.text}`} />
                         {/* Tooltip */}
                         <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-foreground rounded-md text-label font-semibold text-background whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg">
-                          {index === 0 ? 'Vocab' : index === 1 ? 'Sentence AI' : 'PvP'} Mode
+                          {index === 0 ? 'Review' : index === 1 ? 'Sentence AI' : 'PvP'} Mode
                         </div>
                       </div>
                     </Link>
@@ -319,13 +317,13 @@ export default function DashboardPage() {
               className="overflow-hidden"
             >
               <div className="space-y-2 md:grid md:grid-cols-3 md:gap-6">
-                {/* Vocab Mode */}
+                {/* Review Mode */}
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
                 >
-                  <Link href="/vocab">
+                  <Link href="/review-mode">
                     <div className="group bg-card border-2 border-primary-yellow border-opacity-30 rounded-xl md:rounded-3xl p-3 md:p-8 hover:border-primary-yellow transition-colors cursor-pointer shadow-lg hover:shadow-xl">
                       <div className="flex md:flex-col gap-3 md:gap-0">
                         <div className="flex-shrink-0">
@@ -334,9 +332,9 @@ export default function DashboardPage() {
                           </div>
                         </div>
                         <div className="flex-1 md:flex-none min-w-0">
-                          <h3 className="text-heading-3 mb-1 md:mb-2">Vocab Mode</h3>
+                          <h3 className="text-heading-3 mb-1 md:mb-2">Review Mode</h3>
                           <p className="hidden md:block text-body-lg text-muted-foreground mb-3 md:mb-4">
-                            Practice Indonesian to English vocabulary translation
+                            Quick daily vocabulary review practice
                           </p>
                           <div className="flex items-center space-x-1.5 md:space-x-2 text-label">
                             <div className="flex-shrink-0 w-5 h-5 md:w-6 md:h-6 bg-primary-yellow rounded-md flex items-center justify-center">
@@ -576,42 +574,12 @@ export default function DashboardPage() {
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-2 mt-8">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1}
-                  className="p-2 rounded-lg bg-primary-yellow border border-primary-yellow hover:bg-primary-yellow/80 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                >
-                  <ChevronLeft className="w-5 h-5 text-black" />
-                </button>
-
-                <div className="flex items-center gap-2">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`w-8 h-8 rounded-lg font-bold text-base transition-colors cursor-pointer ${
-                        currentPage === page
-                          ? 'bg-primary-yellow text-white'
-                          : 'bg-card hover:bg-card/80'
-                      }`}
-                      style={{
-                        WebkitTextStroke: theme === 'dark' ? '1.5px #000000' : 'none',
-                        paintOrder: 'stroke fill'
-                      }}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  disabled={currentPage === totalPages}
-                  className="p-2 rounded-lg bg-primary-yellow border border-primary-yellow hover:bg-primary-yellow/80 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                >
-                  <ChevronRight className="w-5 h-5 text-black" />
-                </button>
+              <div className="flex justify-center mt-8">
+                <Pagination 
+                  currentPage={currentPage} 
+                  totalPages={totalPages} 
+                  onPageChange={setCurrentPage}
+                />
               </div>
             )}
 

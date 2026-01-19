@@ -692,10 +692,12 @@ function ResultModal({
   const accuracy = ((correctCount / results.length) * 100).toFixed(0);
   const avgTime = (results.reduce((sum, r) => sum + r.time_taken, 0) / results.length).toFixed(1);
   
-  // Calculate XP gained
+  // Calculate XP gained (with bonus for very fast answers)
   const xpGained = results.reduce((sum, r) => {
-    if (!r.correct) return sum; // Wrong answer: 0 XP
-    return sum + (r.time_taken < 10 ? 10 : 5); // Fast: 10 XP, Slow: 5 XP
+    if (!r.correct) return sum; // Wrong or reset: 0 XP
+    if (r.time_taken <= 5) return sum + 15; // ⚡ Very fast: 15 XP
+    if (r.time_taken < 10) return sum + 10; // 🔥 Fast: 10 XP
+    return sum; // ⏱️ Slow or reset: 0 XP
   }, 0);
 
   const handleNextPart = () => {
