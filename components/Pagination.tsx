@@ -12,7 +12,7 @@ export default function Pagination({ currentPage, totalPages, onPageChange }: Pa
   if (totalPages <= 1) return null;
 
   const pagesToShow: (number | string)[] = [];
-  const maxPagesToShow = 2; // Show 2 before and 2 after current page
+  const maxPagesToShow = 1; // Show 1 before and 1 after current page
 
   // Add first page
   pagesToShow.push(1);
