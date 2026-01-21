@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, CheckCircle2, XCircle, Lightbulb, ArrowLeft } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
+import LoadingScreen from '@/components/LoadingScreen';
 import { useTheme } from '@/context/ThemeContext';
 
 interface Word {
@@ -346,20 +347,7 @@ export default function ReviewModeContent() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="flex justify-center mb-4">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-              className="spinner-loading"
-            />
-          </div>
-          <p className="text-text-secondary">Loading vocabulary...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen title="Loading vocabulary..." />;
   }
 
   if (words.length === 0) {
@@ -397,7 +385,7 @@ export default function ReviewModeContent() {
           <div className="flex items-center justify-between mb-2 sm:mb-3 gap-2">
             <div className="flex-1">
               <button
-                onClick={() => router.push('/dashboard')}
+                onClick={() => router.back()}
                 className="flex items-center gap-2 text-text-secondary hover:text-primary-yellow transition-colors cursor-pointer text-body-lg"
               >
                 <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5" />
@@ -556,28 +544,35 @@ export default function ReviewModeContent() {
           className="fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/50"
         >
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-card-darker border-2 border-primary-yellow rounded-3xl p-8 max-w-md w-full shadow-2xl"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="flex flex-col items-center gap-4"
           >
-            <div className="text-center space-y-6">
-              {/* Spinner */}
-              <div className="flex justify-center">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                  className="spinner-loading"
-                />
-              </div>
+            {/* Loading Text with Pulse */}
+            <div className="text-center space-y-4">
+              <motion.p
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                className="text-primary-yellow text-heading-3 font-bold"
+              >
+                Submitting Your Results...
+              </motion.p>
 
-              {/* Text */}
-              <div className="space-y-2">
-                <h3 className="text-2xl font-bold text-white">
-                  Submitting Your Results...
-                </h3>
-                <p className="text-gray-400 text-sm">
-                  Please wait while we save your progress
-                </p>
+              {/* Dots Animation */}
+              <div className="flex justify-center gap-2">
+                {[0, 1, 2].map((i) => (
+                  <motion.div
+                    key={i}
+                    animate={{ y: [-8, 0, -8] }}
+                    transition={{
+                      duration: 0.6,
+                      repeat: Infinity,
+                      delay: i * 0.1,
+                    }}
+                    className="w-2 h-2 rounded-full bg-primary-yellow"
+                  />
+                ))}
               </div>
             </div>
           </motion.div>
@@ -589,13 +584,7 @@ export default function ReviewModeContent() {
         <ResultModal
           results={gameResults}
           onClose={() => router.push('/dashboard')}
-          onBackToCategory={() => {
-            if (categoryFilter) {
-              router.push(`/category-menu/${encodeURIComponent(categoryFilter)}`);
-            } else {
-              router.push('/dashboard');
-            }
-          }}
+          onBackToCategory={() => router.back()}
           onPlayAgain={() => {
             setShowResultModal(false);
             setIsLoading(true);
@@ -652,32 +641,32 @@ function ResultModal({
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: 0.1 }}
         onClick={(e) => e.stopPropagation()}
-        className={`border-2 border-primary-yellow rounded-3xl p-8 max-w-md w-full shadow-2xl ${
+        className={`border-2 border-primary-yellow rounded-2xl md:rounded-3xl p-4 md:p-8 max-w-64 sm:max-w-sm md:max-w-md w-full shadow-2xl ${
           theme === 'dark' ? 'bg-card-darker' : 'bg-white'
         }`}
       >
-        <div className="text-center space-y-6">
+        <div className="text-center space-y-3 md:space-y-6">
           {/* Title */}
-          <div className="space-y-2">
-            <h2 className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+          <div className="space-y-1 md:space-y-2">
+            <h2 className={`text-xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
               Session Complete!
             </h2>
-            <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+            <p className={`text-xs md:text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
               Great job on finishing {results.length} questions
             </p>
           </div>
 
           {/* Stats */}
-          <div className="space-y-4">
+          <div className="space-y-3 md:space-y-4">
             {/* XP Gained - Large Card */}
-            <div className="bg-primary-yellow rounded-2xl p-6">
-              <p className="text-black/70 text-sm font-semibold">Total XP Gained</p>
-              <p className="text-5xl font-bold text-black">+{xpGained}</p>
+            <div className="bg-primary-yellow rounded-xl md:rounded-2xl p-3 md:p-6">
+              <p className="text-black/70 text-xs md:text-sm font-semibold">Total XP Gained</p>
+              <p className="text-3xl md:text-5xl font-bold text-black">+{xpGained}</p>
             </div>
 
             {/* Accuracy & Time Grid */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className={`rounded-xl p-4 ${
+            <div className="grid grid-cols-2 gap-2 md:gap-4">
+              <div className={`rounded-lg md:rounded-xl p-2 md:p-4 ${
                 theme === 'dark' 
                   ? 'bg-[#2a2b2e] border border-gray-700' 
                   : 'bg-gray-50 border border-gray-200'
@@ -685,13 +674,13 @@ function ResultModal({
                 <p className={`text-xs mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                   Accuracy
                 </p>
-                <p className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+                <p className={`text-2xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
                   {accuracy}%
                 </p>
                 <p className="text-gray-500 text-xs mt-1">{correctCount}/{results.length} correct</p>
               </div>
 
-              <div className={`rounded-xl p-4 ${
+              <div className={`rounded-lg md:rounded-xl p-2 md:p-4 ${
                 theme === 'dark' 
                   ? 'bg-[#2a2b2e] border border-gray-700' 
                   : 'bg-gray-50 border border-gray-200'
@@ -699,7 +688,7 @@ function ResultModal({
                 <p className={`text-xs mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                   Avg Time
                 </p>
-                <p className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+                <p className={`text-2xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
                   {avgTime}s
                 </p>
                 <p className="text-gray-500 text-xs mt-1">per question</p>
@@ -708,18 +697,18 @@ function ResultModal({
           </div>
 
           {/* Buttons */}
-          <div className="flex flex-col gap-3 pt-2">
+          <div className="flex flex-col gap-2 md:gap-3 pt-1 md:pt-2">
             <button
               onClick={onPlayAgain}
-              className="w-full px-6 py-4 bg-primary-yellow text-black rounded-xl font-bold text-lg hover:bg-primary-yellow-hover transition-colors shadow-lg cursor-pointer"
+              className="w-full px-4 md:px-6 py-2 md:py-4 bg-primary-yellow text-black rounded-lg md:rounded-xl font-bold text-sm md:text-lg hover:bg-primary-yellow-hover transition-colors shadow-lg cursor-pointer"
             >
               Play Again
             </button>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2 md:gap-3">
               {categoryFilter && (
                 <button
                   onClick={onBackToCategory}
-                  className={`px-6 py-4 rounded-xl font-bold text-lg border-2 transition-colors hover:border-primary-yellow cursor-pointer ${
+                  className={`px-3 md:px-6 py-2 md:py-4 rounded-lg md:rounded-xl font-bold text-xs md:text-lg border-2 transition-colors hover:border-primary-yellow cursor-pointer ${
                     theme === 'dark'
                       ? 'bg-card border-gray-700 text-white'
                       : 'bg-gray-100 border-gray-300 text-black'
@@ -730,7 +719,7 @@ function ResultModal({
               )}
               <button
                 onClick={onClose}
-                className={`px-6 py-4 rounded-xl font-bold text-lg border-2 transition-colors hover:border-primary-yellow cursor-pointer ${
+                className={`px-3 md:px-6 py-2 md:py-4 rounded-lg md:rounded-xl font-bold text-xs md:text-lg border-2 transition-colors hover:border-primary-yellow cursor-pointer ${
                   theme === 'dark'
                     ? 'bg-card border-gray-700 text-white'
                     : 'bg-gray-100 border-gray-300 text-black'

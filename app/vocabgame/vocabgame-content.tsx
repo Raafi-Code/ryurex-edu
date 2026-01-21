@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, CheckCircle2, XCircle, Lightbulb, ArrowLeft, RotateCcw, ChevronRight, Home } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
+import LoadingScreen from '@/components/LoadingScreen';
 
 interface VocabWord {
   vocab_id: number;
@@ -394,20 +395,7 @@ export default function VocabGameContent() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="flex justify-center mb-4">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-              className="spinner-loading"
-            />
-          </div>
-          <p className="text-text-secondary">Loading vocabulary...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen title="Loading vocabulary..." />;
   }
 
   if (words.length === 0) {
@@ -420,7 +408,7 @@ export default function VocabGameContent() {
             There are no words in &quot;{category}&quot; Part {subcategory} yet. Please try another category or part.
           </p>
           <button
-            onClick={() => router.push(`/category-menu/${category}`)}
+            onClick={() => router.back()}
             className="px-6 py-3 bg-primary-yellow text-black rounded-lg font-semibold hover:scale-105 transition-transform cursor-pointer"
           >
             Back to Menu
@@ -445,7 +433,7 @@ export default function VocabGameContent() {
           <div className="flex items-center justify-between mb-2 sm:mb-3 gap-2">
             <div className="flex-1">
               <button
-                onClick={() => router.push('/dashboard')}
+                onClick={() => router.push(`/category-menu/${encodeURIComponent(category || '')}`)}
                 className="flex items-center gap-2 text-text-secondary hover:text-primary-yellow transition-colors cursor-pointer text-body-lg"
               >
                 <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5" />
@@ -614,28 +602,35 @@ export default function VocabGameContent() {
           className="fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/50"
         >
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-card-darker border-2 border-primary-yellow rounded-3xl p-8 max-w-md w-full shadow-2xl"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="flex flex-col items-center gap-4"
           >
-            <div className="text-center space-y-6">
-              {/* Spinner */}
-              <div className="flex justify-center">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                  className="spinner-loading"
-                />
-              </div>
+            {/* Loading Text with Pulse */}
+            <div className="text-center space-y-4">
+              <motion.p
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                className="text-primary-yellow text-heading-3 font-bold"
+              >
+                Submitting Your Results...
+              </motion.p>
 
-              {/* Text */}
-              <div className="space-y-2">
-                <h3 className="text-2xl font-bold text-white">
-                  Submitting Your Results...
-                </h3>
-                <p className="text-gray-400 text-sm">
-                  Please wait while we save your progress
-                </p>
+              {/* Dots Animation */}
+              <div className="flex justify-center gap-2">
+                {[0, 1, 2].map((i) => (
+                  <motion.div
+                    key={i}
+                    animate={{ y: [-8, 0, -8] }}
+                    transition={{
+                      duration: 0.6,
+                      repeat: Infinity,
+                      delay: i * 0.1,
+                    }}
+                    className="w-2 h-2 rounded-full bg-primary-yellow"
+                  />
+                ))}
               </div>
             </div>
           </motion.div>
@@ -648,7 +643,7 @@ export default function VocabGameContent() {
           results={gameResults}
           subcategory={subcategory || ''}
           hasNextPart={hasNextPart}
-          onClose={() => router.push(`/category-menu/${category}`)}
+          onClose={() => router.back()}
           onPlayAgain={() => {
             setShowResultModal(false);
             setIsLoading(true);
@@ -717,44 +712,44 @@ function ResultModal({
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: 0.1 }}
         onClick={(e) => e.stopPropagation()}
-        className="border-2 border-primary-yellow rounded-3xl p-8 max-w-md w-full shadow-2xl bg-card-darker"
+        className="border-2 border-primary-yellow rounded-2xl md:rounded-3xl p-4 md:p-8 max-w-64 sm:max-w-sm md:max-w-md w-full shadow-2xl bg-card-darker"
       >
-        <div className="text-center space-y-6">
+        <div className="text-center space-y-3 md:space-y-6">
           {/* Title */}
-          <div className="space-y-2">
-            <h2 className="text-3xl font-bold text-white">
+          <div className="space-y-1 md:space-y-2">
+            <h2 className="text-xl md:text-3xl font-bold text-white">
               Session Complete!
             </h2>
-            <p className="text-gray-400">
+            <p className="text-xs md:text-sm text-gray-400">
               Great job on finishing {results.length} questions
             </p>
           </div>
 
           {/* Stats */}
-          <div className="space-y-4">
+          <div className="space-y-3 md:space-y-4">
             {/* XP Gained - Large Card */}
-            <div className="bg-primary-yellow rounded-2xl p-6">
-              <p className="text-black/70 text-sm font-semibold">Total XP Gained</p>
-              <p className="text-5xl font-bold text-black">+{xpGained}</p>
+            <div className="bg-primary-yellow rounded-xl md:rounded-2xl p-3 md:p-6">
+              <p className="text-black/70 text-xs md:text-sm font-semibold">Total XP Gained</p>
+              <p className="text-3xl md:text-5xl font-bold text-black">+{xpGained}</p>
             </div>
 
             {/* Accuracy & Time Grid */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl p-4 bg-card-darker border border-gray-700">
+            <div className="grid grid-cols-2 gap-2 md:gap-4">
+              <div className="rounded-lg md:rounded-xl p-2 md:p-4 bg-card-darker border border-gray-700">
                 <p className="text-xs mb-1 text-gray-400">
                   Accuracy
                 </p>
-                <p className="text-3xl font-bold text-white">
+                <p className="text-2xl md:text-3xl font-bold text-white">
                   {accuracy}%
                 </p>
                 <p className="text-gray-500 text-xs mt-1">{correctCount}/{results.length} correct</p>
               </div>
 
-              <div className="rounded-xl p-4 bg-card-darker border border-gray-700">
+              <div className="rounded-lg md:rounded-xl p-2 md:p-4 bg-card-darker border border-gray-700">
                 <p className="text-xs mb-1 text-gray-400">
                   Avg Time
                 </p>
-                <p className="text-3xl font-bold text-white">
+                <p className="text-2xl md:text-3xl font-bold text-white">
                   {avgTime}s
                 </p>
                 <p className="text-gray-500 text-xs mt-1">per question</p>
@@ -763,14 +758,14 @@ function ResultModal({
           </div>
 
           {/* Buttons - Icon Only */}
-          <div className="flex items-center justify-center gap-4 pt-2">
+          <div className="flex items-center justify-center gap-2 md:gap-4 pt-1 md:pt-2">
             {/* Play Again */}
             <button
               onClick={onPlayAgain}
               title="Play Again"
-              className="p-4 bg-primary-yellow text-black rounded-full hover:bg-primary-yellow-hover hover:scale-110 transition-all shadow-lg cursor-pointer"
+              className="p-2 md:p-4 bg-primary-yellow text-black rounded-full hover:bg-primary-yellow-hover hover:scale-110 transition-all shadow-lg cursor-pointer"
             >
-              <RotateCcw className="w-6 h-6" />
+              <RotateCcw className="w-5 h-5 md:w-6 md:h-6" />
             </button>
 
             {/* Next Part */}
@@ -782,22 +777,22 @@ function ResultModal({
               }}
               disabled={!hasNextPart}
               title={hasNextPart ? "Next Part" : "No more parts available"}
-              className={`p-4 rounded-full border-2 transition-all shadow-lg ${
+              className={`p-2 md:p-4 rounded-full border-2 transition-all shadow-lg ${
                 hasNextPart
                   ? 'cursor-pointer hover:scale-110 bg-card border-primary-yellow text-primary-yellow hover:bg-primary-yellow/10'
                   : 'cursor-not-allowed opacity-50 bg-card border-gray-600 text-gray-600'
               }`}
             >
-              <ChevronRight className="w-6 h-6" />
+              <ChevronRight className="w-5 h-5 md:w-6 md:h-6" />
             </button>
 
             {/* Back to Menu */}
             <button
               onClick={onClose}
               title="Back to Menu"
-              className="p-4 rounded-full border-2 border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-300 transition-all hover:scale-110 shadow-lg cursor-pointer bg-card"
+              className="p-2 md:p-4 rounded-full border-2 border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-300 transition-all hover:scale-110 shadow-lg cursor-pointer bg-card"
             >
-              <Home className="w-6 h-6" />
+              <Home className="w-5 h-5 md:w-6 md:h-6" />
             </button>
           </div>
         </div>

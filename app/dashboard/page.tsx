@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart3, BookOpen, LogOut, Play, Clock, Search, Edit2, Zap, Menu, X, Sword, ChevronDown, Brain, Flame } from 'lucide-react';
+import { BarChart3, BookOpen, LogOut, Play, Clock, Search, Edit2, Zap, Menu, X, Sword, ChevronDown, Brain, Flame, CheckCircle } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import EditDisplayNameModal from '@/components/EditDisplayNameModal';
 import Leaderboard from '@/components/Leaderboard';
@@ -59,9 +59,41 @@ export default function DashboardPage() {
   const [isGameModesExpanded, setIsGameModesExpanded] = useState(false);
   const [isLeaderboardExpanded, setIsLeaderboardExpanded] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const CATEGORIES_PER_PAGE = 10;
+  const [screenSize, setScreenSize] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
+  
+  const getCategoriesPerPage = () => {
+    switch (screenSize) {
+      case 'mobile':
+        return 9; // 3 columns × 3 rows
+      case 'tablet':
+        return 12; // 4 columns × 3 rows
+      case 'desktop':
+      default:
+        return 14; // 5+ columns × 3 rows
+    }
+  };
+  
+  const CATEGORIES_PER_PAGE = getCategoriesPerPage();
   const router = useRouter();
   const supabase = createClient();
+
+  useEffect(() => {
+    // Detect screen size
+    const handleResize = () => {
+      const width = window.innerWidth;
+      if (width < 768) {
+        setScreenSize('mobile');
+      } else if (width < 1024) {
+        setScreenSize('tablet');
+      } else {
+        setScreenSize('desktop');
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -507,7 +539,7 @@ export default function DashboardPage() {
 
             return (
               <div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 md:gap-4">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 md:gap-3">
                   {paginatedCategories.map((category, index) => {
                     const learnedCount = category.learned_count || 0;
                     const totalWords = category.count;
@@ -521,7 +553,7 @@ export default function DashboardPage() {
                         transition={{ delay: 0.8 + index * 0.05 }}
                       >
                         <Link href={`/category-menu/${encodeURIComponent(category.name)}`}>
-                          <div className="group bg-card rounded-2xl hover:border-primary-yellow transition-all cursor-pointer h-full flex flex-col overflow-hidden shadow-lg">
+                          <div className="group bg-card rounded-xl hover:border-primary-yellow transition-all cursor-pointer h-full flex flex-col overflow-hidden shadow-lg">
                         {/* Image Container - Full width with rounded top corners */}
                             <div className="relative w-full aspect-square bg-gradient-to-br from-primary-yellow-light to-secondary-purple-light flex items-center justify-center">
                               <Image 
@@ -535,18 +567,29 @@ export default function DashboardPage() {
                                 }}
                         />
                         
+                        {/* Completion Badge - Top Right Corner */}
+                        {progressPercentage === 100 && (
+                          <motion.div
+                            initial={{ scale: 0, rotate: -180 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+                            className="absolute top-2 right-2 bg-green-500 rounded-full p-1 shadow-lg"
+                          >
+                            <CheckCircle className="w-6 h-6 text-white" />
+                          </motion.div>
+                        )}
                       </div>
                       
                       {/* Content Section */}
-                      <div className="p-2 md:p-4 flex flex-col flex-grow">
+                      <div className="p-2 md:p-2 flex flex-col flex-grow">
                         {/* Category Name */}
-                        <h3 className="text-heading-3 text-center mb-2 md:mb-3 group-hover:text-primary-yellow transition-colors">
+                        <h3 className="text-body-sm md:text-heading-3 text-center mb-1 md:mb-2 group-hover:text-primary-yellow transition-colors line-clamp-2">
                           {formatCategoryName(category.name)}
                         </h3>
 
                         {/* Progress Bar */}
-                        <div className="mb-2 md:mb-4 space-y-1">
-                          <div className="w-full bg-input border border-input rounded-full h-2 overflow-hidden">
+                        <div className="mb-1 md:mb-2 space-y-0.5">
+                          <div className="w-full bg-input border border-input rounded-full h-1.5 md:h-2 overflow-hidden">
                             <motion.div
                               initial={{ width: 0 }}
                               animate={{ width: `${progressPercentage}%` }}
@@ -554,13 +597,13 @@ export default function DashboardPage() {
                               className="h-full bg-primary-yellow"
                             />
                           </div>
-                          <p className="text-label text-muted-foreground text-center">
-                            {learnedCount} of {totalWords} learned
+                          <p className="text-xs md:text-label text-muted-foreground text-center">
+                            {learnedCount}/{totalWords}
                         </p>
                       </div>
                       
                       {/* Play Button */}
-                      <button className="w-full py-1 md:py-2 text-label bg-primary-yellow text-black rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-primary-yellow-hover transition-colors group-hover:scale-105 cursor-pointer">
+                      <button className="w-full py-1 md:py-1.5 text-xs md:text-label bg-primary-yellow text-black rounded-lg font-semibold flex items-center justify-center gap-1 hover:bg-primary-yellow-hover transition-colors group-hover:scale-105 cursor-pointer">
                         <Play className="w-3 h-3 md:w-4 md:h-4" />
                         Play
                       </button>

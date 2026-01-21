@@ -13,7 +13,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -56,11 +56,12 @@ export default function LoginPage() {
 
       if (error) throw error;
 
+      // Successfully logged in
+      setLoading(false);
       router.push('/dashboard');
-      router.refresh();
     } catch (error: Error | unknown) {
-      setError(error instanceof Error ? error.message : 'An error occurred during login');
-    } finally {
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred during login';
+      setError(errorMessage);
       setLoading(false);
     }
   };
@@ -204,7 +205,7 @@ export default function LoginPage() {
               whileTap={{ scale: 0.98 }}
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-primary-yellow hover:bg-primary-yellow/90 text-black rounded-lg font-semibold hover:shadow-lg hover:shadow-primary-yellow/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3 bg-primary-yellow hover:bg-primary-yellow/90 text-black rounded-lg font-semibold hover:shadow-lg hover:shadow-primary-yellow/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {loading ? 'Logging in...' : 'Log In'}
             </motion.button>
@@ -227,7 +228,7 @@ export default function LoginPage() {
             type="button"
             onClick={handleMagicLink}
             disabled={loading || !email}
-            className="w-full py-3 bg-secondary-purple/10 border border-secondary-purple/30 text-secondary-purple rounded-lg font-semibold hover:bg-secondary-purple/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3 bg-secondary-purple/10 border border-secondary-purple/30 text-secondary-purple rounded-lg font-semibold hover:bg-secondary-purple/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             Send Magic Link
           </motion.button>

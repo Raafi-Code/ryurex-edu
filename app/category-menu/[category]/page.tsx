@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client';
 import CompactNavbar from '@/components/CompactNavbar';
 import Pagination from '@/components/Pagination';
 import ScrollToTopButton from '@/components/ScrollToTopButton';
+import LoadingScreen from '@/components/LoadingScreen';
 import { useTheme } from '@/context/ThemeContext';
 
 // Helper function to convert 'a1-oxford' to 'A1 Oxford'
@@ -268,20 +269,7 @@ export default function CategoryMenuPage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="flex justify-center mb-4">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-              className="spinner-loading"
-            />
-          </div>
-          <p className="text-body-sm text-text-secondary">Loading category...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen title="Loading category..." />;
   }
 
   if (!categoryData) {
