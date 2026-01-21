@@ -360,10 +360,16 @@ export default function ReviewModeContent() {
             You&apos;ve reviewed all words due for today. Come back tomorrow for more practice, or check your dashboard for stats!
           </p>
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => {
+              if (categoryFilter) {
+                router.back();
+              } else {
+                router.push('/dashboard');
+              }
+            }}
             className="px-6 py-3 bg-primary-yellow text-black rounded-lg font-semibold hover:scale-105 transition-transform cursor-pointer"
           >
-            Back to Dashboard
+            {categoryFilter ? 'Back to Category' : 'Back to Dashboard'}
           </button>
         </div>
       </div>

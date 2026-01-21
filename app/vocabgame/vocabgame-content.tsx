@@ -433,7 +433,7 @@ export default function VocabGameContent() {
           <div className="flex items-center justify-between mb-2 sm:mb-3 gap-2">
             <div className="flex-1">
               <button
-                onClick={() => router.push(`/category-menu/${encodeURIComponent(category || '')}`)}
+                onClick={() => router.back()}
                 className="flex items-center gap-2 text-text-secondary hover:text-primary-yellow transition-colors cursor-pointer text-body-lg"
               >
                 <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5" />

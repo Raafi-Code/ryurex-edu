@@ -171,7 +171,15 @@ export default function SentenceBoxModeContent() {
   };
 
   const handleClear = () => {
-    setAnswerBoxes((prev) => [...prev, ...selectedAnswer].sort((a, b) => a.originalIndex - b.originalIndex));
+    const boxes = [...answerBoxes, ...selectedAnswer];
+    
+    // Fisher-Yates shuffle to randomize
+    for (let i = boxes.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [boxes[i], boxes[j]] = [boxes[j], boxes[i]];
+    }
+    
+    setAnswerBoxes(boxes);
     setSelectedAnswer([]);
   };
 
@@ -247,7 +255,7 @@ export default function SentenceBoxModeContent() {
   };
 
   const handleBackToCategory = () => {
-    router.push(`/category-menu/${encodeURIComponent(category || '')}`);
+    router.back();
   };
 
   const handleBackToDashboard = () => {

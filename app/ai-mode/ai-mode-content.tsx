@@ -313,7 +313,7 @@ export default function AiModeContent() {
   };
 
   const handleBackToCategory = () => {
-    router.push(`/category-menu/${encodeURIComponent(category || '')}`);
+    router.back();
   };
 
   // Loading state
@@ -409,11 +409,17 @@ export default function AiModeContent() {
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
             <div className="flex items-center justify-between gap-2">
               <button
-                onClick={() => router.push(`/category-menu/${category}`)}
+                onClick={() => {
+                  if (category) {
+                    router.back();
+                  } else {
+                    router.push('/dashboard');
+                  }
+                }}
                 className="flex items-center gap-2 text-text-secondary hover:text-primary-yellow hover:font-semibold transition-colors cursor-pointer flex-shrink-0"
               >
                 <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="text-body-sm">Back to Category</span>
+                <span className="text-body-sm">{category ? 'Back to Category' : 'Back to Dashboard'}</span>
               </button>
               <ThemeToggle />
             </div>
@@ -634,7 +640,13 @@ export default function AiModeContent() {
           <div className="flex items-center justify-between mb-2 sm:mb-3 gap-2">
             <div className="flex-1">
               <button
-                onClick={handleBackToDashboard}
+                onClick={() => {
+                  if (category) {
+                    router.back();
+                  } else {
+                    router.push('/dashboard');
+                  }
+                }}
                 className="flex items-center gap-2 text-text-secondary hover:text-primary-yellow transition-colors cursor-pointer text-body-lg"
               >
                 <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5" />
