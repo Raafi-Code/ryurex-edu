@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit, RATE_LIMITS } from '@/lib/rateLimit';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let groqClient: any = null;
@@ -30,6 +31,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Unauthorized', success: false },
         { status: 401 }
+      );
+    }
+
+    // Rate limiting: 5 requests per minute per user for Groq API
+    const rateLimitResult = checkRateLimit(`ai-generate-${user.id}`, RATE_LIMITS.GROQ_API);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Too many requests. Please try again later.',
+          success: false,
+          retryAfter: Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000),
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000).toString(),
+          },
+        }
       );
     }
 

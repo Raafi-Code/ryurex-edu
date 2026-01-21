@@ -1,12 +1,14 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { ReactNode } from 'react';
 
 interface LoadingScreenProps {
   title?: string;
+  icon?: ReactNode;
 }
 
-export default function LoadingScreen({ title = 'Loading your dashboard' }: LoadingScreenProps) {
+export default function LoadingScreen({ title = 'Loading your dashboard', icon }: LoadingScreenProps) {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <motion.div
@@ -17,6 +19,17 @@ export default function LoadingScreen({ title = 'Loading your dashboard' }: Load
       >
         {/* Loading Text with Pulse */}
         <div className="text-center space-y-4">
+          {/* Icon */}
+          {icon && (
+            <motion.div
+              animate={{ scale: [0.9, 1, 0.9] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              className="flex justify-center"
+            >
+              {icon}
+            </motion.div>
+          )}
+
           <motion.p
             animate={{ opacity: [0.5, 1, 0.5] }}
             transition={{ duration: 1.5, repeat: Infinity }}

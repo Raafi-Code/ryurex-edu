@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit, RATE_LIMITS } from '@/lib/rateLimit';
 
 export async function GET(
   request: NextRequest,
@@ -18,7 +19,22 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch lobby
+    // Rate limiting
+    const rateLimitResult = checkRateLimit(`pvp-scores-${user.id}`, RATE_LIMITS.LENIENT);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Too many requests. Please try again later.',
+          retryAfter: Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000),
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000).toString(),
+          },
+        }
+      );
+    }
     const { data: lobby, error: fetchError } = await supabase
       .from('pvp_lobbies')
       .select('host_score, joined_score, host_user_id, joined_user_id')

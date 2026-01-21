@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { checkRateLimit, RATE_LIMITS } from '@/lib/rateLimit';
 
 // Simple, reliable translation using a dedicated API or library
 // For production, consider using: @google-cloud/translate or libre-translate
@@ -45,6 +46,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Unauthorized', success: false },
         { status: 401 }
+      );
+    }
+
+    // Rate limiting: 10 requests per minute per user
+    const rateLimitResult = checkRateLimit(`translate-${user.id}`, RATE_LIMITS.NORMAL);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Too many requests. Please try again later.',
+          success: false,
+          retryAfter: Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000),
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000).toString(),
+          },
+        }
       );
     }
 

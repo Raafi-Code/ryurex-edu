@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, XCircle, Lightbulb, ArrowLeft, RotateCcw, Home, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle2, XCircle, Lightbulb, ArrowLeft, RotateCcw, Home, BookOpen, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 import ThemeToggle from '@/components/ThemeToggle';
+import LoadingScreen from '@/components/LoadingScreen';
 
 interface AiSentenceWord {
   id: number;
@@ -31,6 +33,7 @@ export default function AiModeContent() {
   const searchParams = useSearchParams();
   const category = searchParams.get('category');
   const subcategory = searchParams.get('subcategory');
+  const supabase = createClient();
 
   // Game state
   const [sentences, setSentences] = useState<AiSentenceWord[]>([]);
@@ -47,6 +50,18 @@ export default function AiModeContent() {
   const [reviewIndex, setReviewIndex] = useState(0); // Track current review item
   const [isSubmittingResults, setIsSubmittingResults] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Check authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/');
+      }
+    };
+
+    checkAuth();
+  }, [router, supabase]);
 
   // Reset all game state when category or subcategory changes
   useEffect(() => {
@@ -78,7 +93,7 @@ export default function AiModeContent() {
     const loadAiSentences = async () => {
       try {
         // Step 1: Generate Indonesian sentences using Groq
-        setLoadingMessage('🤖 Generating Indonesian sentences with AI...');
+        setLoadingMessage('Generating Indonesian sentences with AI...');
         console.log('📝 Step 1: Generating sentences with Groq');
 
         const generateResponse = await fetch('/api/ai/generateSentences', {
@@ -318,21 +333,7 @@ export default function AiModeContent() {
 
   // Loading state
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <div className="text-center">
-          <div className="flex justify-center mb-4">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-              className="spinner-loading"
-            />
-          </div>
-          <p className="text-body-sm sm:text-body-lg text-text-primary font-semibold mb-2">{loadingMessage}</p>
-          <p className="text-body-xs sm:text-body-sm text-text-secondary">This may take a moment...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen title={loadingMessage} icon={<Sparkles className="w-12 h-12 text-primary-yellow" />} />;
   }
 
   // Error state

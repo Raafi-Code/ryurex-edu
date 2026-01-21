@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, CheckCircle2, XCircle, Lightbulb, ArrowLeft, RotateCcw, ChevronRight, Home } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 import ThemeToggle from '@/components/ThemeToggle';
 import LoadingScreen from '@/components/LoadingScreen';
 
@@ -28,6 +29,7 @@ export default function VocabGameContent() {
   const searchParams = useSearchParams();
   const category = searchParams.get('category');
   const subcategory = searchParams.get('subcategory');
+  const supabase = createClient();
 
   // Game state
   const [words, setWords] = useState<VocabWord[]>([]);
@@ -42,6 +44,18 @@ export default function VocabGameContent() {
   const [showResultModal, setShowResultModal] = useState(false);
   const [isSubmittingResults, setIsSubmittingResults] = useState(false);
   const [hasNextPart, setHasNextPart] = useState(false);
+
+  // Check authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/');
+      }
+    };
+
+    checkAuth();
+  }, [router, supabase]);
 
   // Reset all game state when category or subcategory changes
   useEffect(() => {

@@ -69,6 +69,18 @@ export default function AiModeSelectPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const CATEGORIES_PER_PAGE = 10;
 
+  // Check authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/');
+      }
+    };
+
+    checkAuth();
+  }, [router, supabase]);
+
   const fetchCategories = useCallback(async () => {
     try {
       const response = await fetch('/api/categories');

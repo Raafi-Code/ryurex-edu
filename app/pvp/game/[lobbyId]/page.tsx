@@ -75,6 +75,18 @@ export default function PvPGamePage() {
   const [questionTimer, setQuestionTimer] = useState(0);
   const [hintClickCount, setHintClickCount] = useState(0);
 
+  // Check authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/');
+      }
+    };
+
+    checkAuth();
+  }, [router, supabase]);
+
   // Question timer interval - only start after page is fully loaded
   useEffect(() => {
     if (isLoading || !gameState || gameFinished || !lobbData) return;

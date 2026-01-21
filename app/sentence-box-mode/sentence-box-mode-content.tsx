@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, XCircle, ArrowLeft, RotateCcw, Home } from 'lucide-react';
+import { CheckCircle2, XCircle, ArrowLeft, RotateCcw, Home, Sparkles } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 import ThemeToggle from '@/components/ThemeToggle';
+import LoadingScreen from '@/components/LoadingScreen';
 import { useTheme } from '@/context/ThemeContext';
 
 interface AiSentenceWord {
@@ -36,6 +38,7 @@ export default function SentenceBoxModeContent() {
   const searchParams = useSearchParams();
   const category = searchParams.get('category');
   const subcategory = searchParams.get('subcategory');
+  const supabase = createClient();
   const { theme } = useTheme();
 
   // Game state
@@ -51,6 +54,18 @@ export default function SentenceBoxModeContent() {
   const [showResultModal, setShowResultModal] = useState(false);
   const [isSubmittingResults, setIsSubmittingResults] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Check authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/');
+      }
+    };
+
+    checkAuth();
+  }, [router, supabase]);
 
   // Reset all game state when category or subcategory changes
   useEffect(() => {
@@ -79,7 +94,7 @@ export default function SentenceBoxModeContent() {
 
     const loadAiSentences = async () => {
       try {
-        setLoadingMessage('🤖 Generating sentences with AI...');
+        setLoadingMessage('Generating sentences with AI...');
         console.log('📝 Generating sentences for Sentence Box Mode');
 
         const generateResponse = await fetch('/api/ai/generateSentences', {
@@ -289,25 +304,7 @@ export default function SentenceBoxModeContent() {
 
   // Loading state
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <div className="text-center">
-          <div className="flex justify-center mb-4">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-              className="spinner-loading"
-            />
-          </div>
-          <p className="text-body-sm sm:text-body-lg text-text-primary font-semibold mb-2">
-            {loadingMessage}
-          </p>
-          <p className="text-body-xs sm:text-body-sm text-text-secondary">
-            This may take a moment...
-          </p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen title={loadingMessage} icon={<Sparkles className="w-12 h-12 text-primary-yellow" />} />;
   }
 
   // Error state
@@ -348,7 +345,13 @@ export default function SentenceBoxModeContent() {
           <div className="flex items-center justify-between mb-2 sm:mb-3 gap-2">
             <div className="flex-1">
               <button
-                onClick={handleBackToCategory}
+                onClick={() => {
+                  if (category) {
+                    router.back();
+                  } else {
+                    router.push('/dashboard');
+                  }
+                }}
                 className="flex items-center gap-2 text-text-secondary hover:text-primary-yellow transition-colors cursor-pointer text-body-lg"
               >
                 <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5" />

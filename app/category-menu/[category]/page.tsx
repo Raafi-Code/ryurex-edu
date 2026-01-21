@@ -88,6 +88,18 @@ export default function CategoryMenuPage() {
   const [partsPerPage, setPartsPerPage] = useState(6); // Default for mobile (3 cols × 2 rows)
   const { theme } = useTheme();
 
+  // Check authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/');
+      }
+    };
+
+    checkAuth();
+  }, [router, supabase]);
+
   // Calculate responsive parts per page based on screen size
   useEffect(() => {
     const handleResize = () => {

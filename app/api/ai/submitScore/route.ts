@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit, RATE_LIMITS } from '@/lib/rateLimit';
 
 interface AiModeResult {
   vocab_id: number;
@@ -28,6 +29,24 @@ export async function POST(req: NextRequest) {
     }
 
     const userId = user.id;
+
+    // Rate limiting: 10 requests per minute per user
+    const rateLimitResult = checkRateLimit(`ai-submit-${user.id}`, RATE_LIMITS.NORMAL);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Too many requests. Please try again later.',
+          success: false,
+          retryAfter: Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000),
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000).toString(),
+          },
+        }
+      );
+    }
     const body: SubmitAiModePayload = await req.json();
     const { results, category, subcategory } = body;
 

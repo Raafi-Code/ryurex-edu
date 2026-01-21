@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, CheckCircle2, XCircle, Lightbulb, ArrowLeft } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 import ThemeToggle from '@/components/ThemeToggle';
 import LoadingScreen from '@/components/LoadingScreen';
 import { useTheme } from '@/context/ThemeContext';
@@ -28,6 +29,7 @@ export default function ReviewModeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const categoryFilter = searchParams.get('category');
+  const supabase = createClient();
 
   // Game state
   const [words, setWords] = useState<Word[]>([]);
@@ -41,6 +43,18 @@ export default function ReviewModeContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [showResultModal, setShowResultModal] = useState(false);
   const [isSubmittingResults, setIsSubmittingResults] = useState(false);
+
+  // Check authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/');
+      }
+    };
+
+    checkAuth();
+  }, [router, supabase]);
 
   // Timer interval
   useEffect(() => {

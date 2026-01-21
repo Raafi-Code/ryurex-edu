@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit, RATE_LIMITS } from '@/lib/rateLimit';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,6 +16,23 @@ export async function POST(request: NextRequest) {
     }
 
     const { lobbyId, playerRole, finalScore, gameStats } = await request.json();
+
+    // Rate limiting
+    const rateLimitResult = checkRateLimit(`submit-score-${user.id}`, RATE_LIMITS.NORMAL);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Too many requests. Please try again later.',
+          retryAfter: Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000),
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000).toString(),
+          },
+        }
+      );
+    }
 
     if (!lobbyId || !playerRole || finalScore === undefined) {
       return NextResponse.json(
