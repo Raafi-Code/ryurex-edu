@@ -303,7 +303,6 @@ export default function DashboardPage() {
               <div className="flex gap-4">
                 {[
                   { href: '/review-mode', icon: Play, bg: 'bg-primary-yellow', text: 'text-black' },
-                  { href: '/ai-mode/select', icon: Brain, bg: 'bg-secondary-purple', text: 'text-white' },
                   { href: '/pvp', icon: Sword, bg: 'bg-red-500/20', text: 'text-red-500' }
                 ].map((mode, index) => (
                   <motion.div
@@ -317,7 +316,7 @@ export default function DashboardPage() {
                         <mode.icon className={`w-6 h-6 md:w-7 md:h-7 ${mode.text}`} />
                         {/* Tooltip */}
                         <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-foreground rounded-md text-label font-semibold text-background whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg">
-                          {index === 0 ? 'Review' : index === 1 ? 'Sentence AI' : 'PvP'} Mode
+                          {index === 0 ? 'Review' : 'PvP'} Mode
                         </div>
                       </div>
                     </Link>
@@ -348,7 +347,8 @@ export default function DashboardPage() {
               transition={{ duration: 0.3 }}
               className="overflow-hidden"
             >
-              <div className="space-y-2 md:grid md:grid-cols-3 md:gap-6">
+              <div className="flex justify-center">
+                <div className="space-y-2 md:grid md:grid-cols-2 md:gap-6 md:max-w-4xl">
                 {/* Review Mode */}
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
@@ -356,7 +356,7 @@ export default function DashboardPage() {
                   transition={{ delay: 0.1 }}
                 >
                   <Link href="/review-mode">
-                    <div className="group bg-card border-2 border-primary-yellow border-opacity-30 rounded-xl md:rounded-3xl p-3 md:p-8 hover:border-primary-yellow transition-colors cursor-pointer shadow-lg hover:shadow-xl">
+                    <div className="group bg-card border-2 border-primary-yellow border-opacity-30 rounded-xl md:rounded-3xl p-3 md:p-8 hover:border-primary-yellow transition-colors cursor-pointer shadow-lg hover:shadow-xl md:min-h-[280px]">
                       <div className="flex md:flex-col gap-3 md:gap-0">
                         <div className="flex-shrink-0">
                           <div className="flex items-center justify-center w-12 h-12 md:w-16 md:h-16 bg-primary-yellow rounded-lg md:rounded-2xl md:mb-4">
@@ -382,42 +382,6 @@ export default function DashboardPage() {
                   </Link>
                 </motion.div>
 
-                {/* Sentence Mode AI */}
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.15 }}
-                >
-                  <Link href="/ai-mode/select">
-                    <div className="group bg-card border-2 border-secondary-purple border-opacity-30 rounded-xl md:rounded-3xl p-3 md:p-8 hover:border-secondary-purple transition-colors cursor-pointer shadow-lg hover:shadow-xl">
-                      <div className="flex md:flex-col gap-3 md:gap-0">
-                        <div className="flex-shrink-0">
-                          <div className="flex items-center justify-center w-12 h-12 md:w-16 md:h-16 bg-secondary-purple rounded-lg md:rounded-2xl md:mb-4">
-                            <Brain className="w-6 h-6 md:w-8 md:h-8 text-white" />
-                          </div>
-                        </div>
-                        <div className="flex-1 md:flex-none min-w-0">
-                          <h3 className="text-heading-3 mb-1 md:mb-2 flex items-center gap-2 flex-wrap">
-                            <span>Sentence Mode</span>
-                            <span className="inline-block bg-primary-yellow text-black px-2 py-1 rounded text-body-sm">AI</span>
-                          </h3>
-                          <p className="hidden md:block text-body-lg text-muted-foreground mb-3 md:mb-4">
-                            Learn with AI-generated sentences and real-time translation
-                          </p>
-                          <div className="flex items-center space-x-1.5 md:space-x-2 text-label">
-                            <div className="flex-shrink-0 w-5 h-5 md:w-6 md:h-6 bg-secondary-purple rounded-md flex items-center justify-center">
-                              <Brain className="w-3 h-3 md:w-4 md:h-4 text-white" />
-                            </div>
-                            <span className="text-secondary-purple font-semibold">
-                              Unlimited Practice
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                </motion.div>
-
                 {/* PvP Mode */}
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
@@ -425,7 +389,7 @@ export default function DashboardPage() {
                   transition={{ delay: 0.2 }}
                 >
                   <Link href="/pvp">
-                    <div className="group bg-card border-2 border-red-500 border-opacity-30 rounded-xl md:rounded-3xl p-3 md:p-8 hover:border-red-500 transition-colors cursor-pointer shadow-lg hover:shadow-xl">
+                    <div className="group bg-card border-2 border-red-500 border-opacity-30 rounded-xl md:rounded-3xl p-3 md:p-8 hover:border-red-500 transition-colors cursor-pointer shadow-lg hover:shadow-xl md:min-h-[280px]">
                       <div className="flex md:flex-col gap-3 md:gap-0">
                         <div className="flex-shrink-0">
                           <div className="flex items-center justify-center w-12 h-12 md:w-16 md:h-16 bg-red-500/20 rounded-lg md:rounded-2xl md:mb-4">
@@ -451,6 +415,7 @@ export default function DashboardPage() {
                   </Link>
                 </motion.div>
               </div>
+            </div>
             </motion.div>
           )}
         </AnimatePresence>
