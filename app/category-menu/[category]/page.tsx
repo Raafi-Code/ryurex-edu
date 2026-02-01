@@ -511,12 +511,6 @@ export default function CategoryMenuPage() {
                   <h2 className="text-heading-3 text-text-primary mb-1">
                     {formatCategoryName(categoryName)}
                   </h2>
-                  <p className="text-body-sm text-text-secondary">
-                    {categoryData.total_words} words
-                  </p>
-                  <p className="text-xs text-text-secondary/60 mt-0.5">
-                    {categoryData.subcategories.length} parts
-                  </p>
                 </div>
                 </motion.div>
               </div>

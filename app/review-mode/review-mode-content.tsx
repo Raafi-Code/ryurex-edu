@@ -100,11 +100,16 @@ export default function ReviewModeContent() {
     
     const loadWords = async () => {
       try {
-        // Build URL with optional category filter
+        // Get number of questions from localStorage
+        const savedNumQuestions = localStorage.getItem('reviewModeNumQuestions');
+        const numQuestions = savedNumQuestions ? parseInt(savedNumQuestions, 10) : 10;
+        
+        // Build URL with optional category filter and numQuestions
         const url = new URL('/api/getBatch', window.location.origin);
         if (categoryFilter) {
           url.searchParams.append('category', categoryFilter);
         }
+        url.searchParams.append('numQuestions', numQuestions.toString());
         
         const response = await fetch(url.toString());
         if (!response.ok) {
@@ -148,11 +153,16 @@ export default function ReviewModeContent() {
 
   const fetchWords = async () => {
     try {
-      // Build URL with optional category filter
+      // Get number of questions from localStorage
+      const savedNumQuestions = localStorage.getItem('reviewModeNumQuestions');
+      const numQuestions = savedNumQuestions ? parseInt(savedNumQuestions, 10) : 10;
+      
+      // Build URL with optional category filter and numQuestions
       const url = new URL('/api/getBatch', window.location.origin);
       if (categoryFilter) {
         url.searchParams.append('category', categoryFilter);
       }
+      url.searchParams.append('numQuestions', numQuestions.toString());
       
       const response = await fetch(url.toString());
       if (!response.ok) {

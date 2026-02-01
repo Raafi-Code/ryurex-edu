@@ -5,9 +5,8 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart3, BookOpen, LogOut, Play, Clock, Search, Edit2, Zap, Menu, X, Sword, ChevronDown, Brain, Flame, CheckCircle } from 'lucide-react';
+import { BookOpen, LogOut, Play, Clock, Search, Settings, Zap, Menu, X, Sword, ChevronDown, Flame, CheckCircle } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
-import EditDisplayNameModal from '@/components/EditDisplayNameModal';
 import Leaderboard from '@/components/Leaderboard';
 import Pagination from '@/components/Pagination';
 import ScrollToTopButton from '@/components/ScrollToTopButton';
@@ -54,7 +53,6 @@ export default function DashboardPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isGameModesExpanded, setIsGameModesExpanded] = useState(false);
   const [isLeaderboardExpanded, setIsLeaderboardExpanded] = useState(false);
@@ -181,12 +179,13 @@ export default function DashboardPage() {
 
             {/* Desktop Menu */}
             <div className="hidden md:flex items-center gap-4">
-              <button
-                onClick={() => setIsEditModalOpen(true)}
-                className="flex items-center justify-center w-10 h-10 bg-primary-yellow rounded-lg hover:bg-primary-yellow-hover transition-colors cursor-pointer"
-              >
-                <Edit2 className="w-5 h-5 text-black" />
-              </button>
+              <Link href="/settings">
+                <button
+                  className="flex items-center justify-center w-10 h-10 bg-primary-yellow rounded-lg hover:bg-primary-yellow-hover transition-colors cursor-pointer"
+                >
+                  <Settings className="w-5 h-5 text-black" />
+                </button>
+              </Link>
               <ThemeToggle />
               <button
                 onClick={handleLogout}
@@ -220,16 +219,15 @@ export default function DashboardPage() {
             className="md:hidden overflow-hidden"
           >
             <div className="px-4 py-4 space-y-3 border-t border-theme">
-              <button
-                onClick={() => {
-                  setIsEditModalOpen(true);
-                  setIsMobileMenuOpen(false);
-                }}
-                className="w-full flex items-center gap-2 px-4 py-2 text-label font-medium text-foreground hover:text-primary-yellow transition-colors cursor-pointer rounded-lg hover:bg-theme"
-              >
-                <Edit2 className="w-4 h-4" />
-                <span>Edit Name</span>
-              </button>
+              <Link href="/settings">
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-label font-medium text-foreground hover:text-primary-yellow transition-colors cursor-pointer rounded-lg hover:bg-theme"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>Settings</span>
+                </button>
+              </Link>
               <button
                 onClick={() => {
                   handleLogout();
@@ -602,15 +600,6 @@ export default function DashboardPage() {
           })()}
         </motion.div>
 
-        {/* Edit Display Name Modal */}
-        <EditDisplayNameModal
-          isOpen={isEditModalOpen}
-          currentDisplayName={displayName}
-          onClose={() => setIsEditModalOpen(false)}
-          onSuccess={(newDisplayName) => {
-            setDisplayName(newDisplayName);
-          }}
-        />
         </div>
       </div>
 

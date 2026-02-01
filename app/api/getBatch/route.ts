@@ -10,6 +10,14 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const categoryFilter = searchParams.get('category');
     const subcategoryFilter = searchParams.get('subcategory');
+    const numQuestionsParam = searchParams.get('numQuestions');
+    
+    // Default to 10 if not specified, max 200
+    let numQuestions = 10;
+    if (numQuestionsParam) {
+      const parsed = parseInt(numQuestionsParam, 10);
+      numQuestions = Math.min(Math.max(parsed, 1), 200); // Clamp between 1 and 200
+    }
 
     // Get authenticated user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -124,7 +132,7 @@ export async function GET(request: Request) {
       .filter(Boolean);
 
     // Step 5: Apply limit AFTER all filtering
-    const words = allWords.slice(0, 10);
+    const words = allWords.slice(0, numQuestions);
 
     console.log(`📊 Final batch: ${words.length} words (after filters and limit)`);
 
