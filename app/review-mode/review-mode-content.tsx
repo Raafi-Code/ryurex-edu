@@ -311,8 +311,9 @@ export default function ReviewModeContent() {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     // Prevent spacebar input (spaces are auto-added by system)
+    // Using onKeyDown instead of onKeyPress for better mobile support
     if (e.key === ' ') {
       e.preventDefault();
       return;
@@ -484,7 +485,7 @@ export default function ReviewModeContent() {
                   type="text"
                   value={userAnswer}
                   onChange={handleInputChange}
-                  onKeyPress={handleKeyPress}
+                  onKeyDown={handleKeyDown}
                   disabled={!!feedback}
                   maxLength={currentWord.english.length}
                   className="absolute inset-0 opacity-0 w-full h-full cursor-default"
@@ -671,7 +672,7 @@ function ResultModal({
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: 0.1 }}
         onClick={(e) => e.stopPropagation()}
-        className={`border-2 border-primary-yellow rounded-2xl md:rounded-3xl p-4 md:p-8 max-w-64 sm:max-w-sm md:max-w-md w-full shadow-2xl ${
+        className={`border-2 border-primary-yellow rounded-2xl md:rounded-3xl p-4 md:p-8 max-w-sm sm:max-w-md md:max-w-lg w-full shadow-2xl ${
           theme === 'dark' ? 'bg-card-darker' : 'bg-white'
         }`}
       >

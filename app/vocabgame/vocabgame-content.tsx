@@ -726,7 +726,7 @@ function ResultModal({
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: 0.1 }}
         onClick={(e) => e.stopPropagation()}
-        className="border-2 border-primary-yellow rounded-2xl md:rounded-3xl p-4 md:p-8 max-w-64 sm:max-w-sm md:max-w-md w-full shadow-2xl bg-card-darker"
+        className="border-2 border-primary-yellow rounded-2xl md:rounded-3xl p-4 md:p-8 max-w-sm sm:max-w-md md:max-w-lg w-full shadow-2xl bg-card-darker"
       >
         <div className="text-center space-y-3 md:space-y-6">
           {/* Title */}
