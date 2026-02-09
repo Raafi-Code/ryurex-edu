@@ -59,7 +59,7 @@ export async function GET() {
       'Object': '📦',
     };
 
-    const formattedCategories = categoryStatsList.map(stat => ({
+    const formattedCategories = categoryStatsList.map((stat: { category: string; count: number; learnedCount: number }) => ({
       name: stat.category,
       count: stat.count,
       learned_count: stat.learnedCount,
