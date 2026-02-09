@@ -137,22 +137,6 @@ export default function LobbyPage() {
           const wasOpponentJoined = lobbyData?.status === 'opponent_joined';
           const isNowInProgress = data.status === 'in_progress';
           
-          console.log('[LOBBY POLLING]', {
-            gameCode,
-            currentUser: user.id,
-            isHost: data.host_user_id === user.id,
-            status: data.status,
-            hostUserId: data.host_user_id,
-            joinedUserId: data.joined_user_id,
-            wasStatusWaiting,
-            isNowOpponentJoined,
-            wasOpponentJoined,
-            isNowInProgress,
-            shouldShowPopup: data.host_user_id === user.id && wasStatusWaiting && isNowOpponentJoined,
-            hostApproved: data.host_approved,
-            player2Ready: data.player2_ready
-          });
-          
           setLobbyData(data);
           setIsHost(data.host_user_id === user.id);
           setIsJoined(data.joined_user_id === user.id);
@@ -171,20 +155,17 @@ export default function LobbyPage() {
 
           // Detect if game has started - redirect both players to game page
           if (isNowInProgress && (wasOpponentJoined || data.status === 'opponent_joined')) {
-            console.log('[GAME START] Redirecting to game:', data.id);
             router.push(`/pvp/game/${data.id}`);
             return;
           }
 
           // Detect if Player 2 was kicked
           if (!isHost && isJoined && !data.joined_user_id) {
-            console.log('[KICKED] Player 2 has been kicked');
             setIsKicked(true);
           }
 
           // Show approval popup when opponent joins (for host only)
           if (data.host_user_id === user.id && wasStatusWaiting && isNowOpponentJoined) {
-            console.log('[POPUP TRIGGER] Showing approval popup for', data.joined_user_id);
             setShowApprovalPopup(true);
           }
 
@@ -207,7 +188,6 @@ export default function LobbyPage() {
               .single();
 
             if (isMounted && joinedData) {
-              console.log('[JOINED PROFILE] Fetched:', joinedData.display_name);
               setJoinedProfile(joinedData);
             }
           } else {
@@ -331,8 +311,6 @@ export default function LobbyPage() {
     if (!lobbyData) return;
 
     try {
-      console.log('🎮 Starting game with lobby ID:', lobbyData.id);
-      
       // Call API to generate questions (for AI mode) and start game
       const response = await fetch('/api/pvp/start-game', {
         method: 'POST',
@@ -340,20 +318,15 @@ export default function LobbyPage() {
         body: JSON.stringify({ lobbyId: lobbyData.id }),
       });
 
-      console.log('📡 API Response status:', response.status);
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('❌ Error starting game:', errorData.error || errorData);
         alert(`Failed to start game: ${errorData.error || 'Unknown error'}`);
         return;
       }
 
       const data = await response.json();
-      console.log('✅ Game started successfully:', data);
 
       // Redirect to game page
-      console.log('🔀 Redirecting to game page...');
       router.push(`/pvp/game/${lobbyData.id}`);
     } catch (error) {
       console.error('❌ Error in handleStartGame:', error);

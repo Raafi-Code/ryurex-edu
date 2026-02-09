@@ -6,6 +6,7 @@ interface GameResult {
   vocab_id: number;
   correct: boolean;
   time_taken: number;
+  hintUsed?: boolean;
 }
 
 interface BatchRequest {
@@ -70,42 +71,65 @@ export async function POST(request: NextRequest) {
         .select('fluency, xp_earned, correct_count, wrong_count, response_avg, next_due')
         .eq('user_id', user.id)
         .eq('vocab_id', vocab_id)
-        .single();
+        .maybeSingle();
 
       if (fetchError) {
         console.error(`❌ Error fetching progress for vocab ${vocab_id}:`, fetchError);
         continue;
       }
 
+      // Normalize next_due to YYYY-MM-DD format (handle both DATE and TIMESTAMP)
+      const nextDueNormalized = currentProgress?.next_due 
+        ? currentProgress.next_due.split('T')[0]  // Extract date part if timestamp
+        : null;
+
       // Check if this word was previously studied (not first time)
       const isPreviouslyStudied = !!currentProgress;
-      const isNextDueToday = !isPreviouslyStudied || currentProgress.next_due === todayStr;
+      // Word is "due" if it's new OR if next_due is today or in the past (overdue)
+      const isNextDueToday = !isPreviouslyStudied || (nextDueNormalized <= todayStr);
+
+      // VALIDATION: Skip words that have FUTURE due dates (not yet due)
+      // Include words that are due TODAY or OVERDUE (next_due <= today)
+      if (mode === 'spaced-repetition' && isPreviouslyStudied && nextDueNormalized > todayStr) {
+        console.warn(`⚠️ vocab_id ${vocab_id}: Skipped - future due date (next_due: ${nextDueNormalized}, today: ${todayStr}). Not yet due for review.`);
+        continue;
+      }
+
+      // DEBUG: Log the date comparison
+      if (isPreviouslyStudied) {
+        console.log(`  🔍 vocab_id ${vocab_id}: next_due_raw = ${currentProgress?.next_due}, normalized = ${nextDueNormalized}, today = ${todayStr}, isNextDueToday = ${isNextDueToday}`);
+      }
 
       // IMPROVED HYBRID FORMULA: Aggressive progression with time-based rewards
-      // Updated Rule: if f = 0 → days = 0
-      //               if f = 1 → days = 1
-      //               if f = 2 → days = 3 (changed from 2)
-      //               if f ≥ 3 → days = round(7 × 1.7^(f−3))
+      // If hint is used, normal progression rules apply (no bonus)
+      // If hint is not used, bonus (+2 for all at ≤5s)
       let fluencyChange = 0;
       let daysUntilNext = 0;
       let newFluency = 0;
       
+      const hintWasUsed = result.hintUsed === true;
+      
       if (correct && time_taken <= 5) {
-        // ⚡ VERY FAST (≤5s) - Double progression!
+        // ⚡ VERY FAST (≤5s)
         if (mode === 'practice' || isNextDueToday) {
-          fluencyChange = +2; // Big jump!
+          // If hint used: always +1. If no hint: +2 bonus
+          if (hintWasUsed) {
+            fluencyChange = +1; // Normal progression when hint used
+          } else {
+            fluencyChange = +2; // Bonus progression without hint
+          }
         } else {
           fluencyChange = 0; // Don't increase fluency if not due today (locked)
         }
         
-        newFluency = Math.max(0, Math.min(10, currentProgress.fluency + fluencyChange));
+        newFluency = Math.max(0, Math.min(10, (currentProgress?.fluency ?? 0) + fluencyChange));
         
         if (newFluency === 0) {
           daysUntilNext = 0;
         } else if (newFluency === 1) {
           daysUntilNext = 1;
         } else if (newFluency === 2) {
-          daysUntilNext = 3; // CHANGED from 2 to 3
+          daysUntilNext = 3;
         } else {
           daysUntilNext = Math.round(7 * Math.pow(1.7, newFluency - 3));
         }
@@ -113,12 +137,12 @@ export async function POST(request: NextRequest) {
       } else if (correct && time_taken > 5 && time_taken < 10) {
         // 🔥 FAST (5-10s) - Normal progression
         if (mode === 'practice' || isNextDueToday) {
-          fluencyChange = +1; // Normal progression
+          fluencyChange = +1; // Normal progression (same whether hint used or not)
         } else {
           fluencyChange = 0; // Don't increase fluency if not due today (locked)
         }
         
-        newFluency = Math.max(0, Math.min(10, currentProgress.fluency + fluencyChange));
+        newFluency = Math.max(0, Math.min(10, (currentProgress?.fluency ?? 0) + fluencyChange));
         
         if (newFluency === 0) {
           daysUntilNext = 0;
@@ -171,19 +195,19 @@ export async function POST(request: NextRequest) {
 
       // Calculate new response_avg (moving average)
       // Formula: new_avg = (old_avg * total_attempts + current_time) / (total_attempts + 1)
-      const totalAttempts = currentProgress.correct_count + currentProgress.wrong_count;
+      const totalAttempts = (currentProgress?.correct_count ?? 0) + (currentProgress?.wrong_count ?? 0);
       const newResponseAvg = totalAttempts === 0
         ? time_taken
-        : (currentProgress.response_avg * totalAttempts + time_taken) / (totalAttempts + 1);
+        : ((currentProgress?.response_avg ?? 0) * totalAttempts + time_taken) / (totalAttempts + 1);
 
       // Prepare update
       updates.push({
         vocab_id,
         fluency: newFluency,
         next_due: nextDueDate,
-        xp_earned: currentProgress.xp_earned + xpGain,
-        correct_count: currentProgress.correct_count + (correct ? 1 : 0),
-        wrong_count: currentProgress.wrong_count + (correct ? 0 : 1),
+        xp_earned: (currentProgress?.xp_earned ?? 0) + xpGain,
+        correct_count: (currentProgress?.correct_count ?? 0) + (correct ? 1 : 0),
+        wrong_count: (currentProgress?.wrong_count ?? 0) + (correct ? 0 : 1),
         response_avg: newResponseAvg,
         fluencyChange,
         daysUntilNext,
@@ -192,14 +216,16 @@ export async function POST(request: NextRequest) {
         xpGain
       });
 
-      console.log(`  📝 vocab_id ${vocab_id}: ${correct ? '✅' : '❌'} in ${time_taken}s → fluency ${currentProgress.fluency}→${newFluency}${correct && !isNextDueToday && time_taken < 10 && mode === 'spaced-repetition' ? ' (locked, next_due not today)' : ''}, next_due: ${nextDueDate}, response_avg: ${newResponseAvg.toFixed(1)}s, XP: +${xpGain}`);
+      console.log(`  📝 vocab_id ${vocab_id}: ${correct ? '✅' : '❌'} in ${time_taken}s → fluency ${currentProgress?.fluency ?? 0}→${newFluency}${correct && !isNextDueToday && time_taken < 10 && mode === 'spaced-repetition' ? ' (locked, not in review session)' : ''}, next_due: ${nextDueDate}, response_avg: ${newResponseAvg.toFixed(1)}s, XP: +${xpGain}`);
     }
 
     // Batch update all progress records
     for (const update of updates) {
       const { error: updateError } = await supabase
         .from('user_vocab_progress')
-        .update({
+        .upsert({
+          user_id: user.id,
+          vocab_id: update.vocab_id,
           fluency: update.fluency,
           next_due: update.next_due,
           xp_earned: update.xp_earned,
@@ -208,9 +234,9 @@ export async function POST(request: NextRequest) {
           response_avg: update.response_avg,
           last_reviewed: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', user.id)
-        .eq('vocab_id', update.vocab_id);
+        }, {
+          onConflict: 'user_id,vocab_id'
+        });
 
       if (updateError) {
         console.error(`❌ Error updating vocab ${update.vocab_id}:`, updateError);

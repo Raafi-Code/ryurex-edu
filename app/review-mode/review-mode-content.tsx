@@ -23,6 +23,7 @@ interface GameResult {
   vocab_id: number;
   correct: boolean;
   time_taken: number;
+  hintUsed?: boolean;
 }
 
 export default function ReviewModeContent() {
@@ -43,6 +44,11 @@ export default function ReviewModeContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [showResultModal, setShowResultModal] = useState(false);
   const [isSubmittingResults, setIsSubmittingResults] = useState(false);
+  
+  // Hint button settings
+  const [enableHintButton, setEnableHintButton] = useState(false);
+  const [hintButtonClicked, setHintButtonClicked] = useState(false);
+  const [hintUsed, setHintUsed] = useState(false);
 
   // Check authentication on mount
   useEffect(() => {
@@ -50,6 +56,12 @@ export default function ReviewModeContent() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push('/');
+      }
+      
+      // Load hint button setting from localStorage
+      const savedEnableHintButton = localStorage.getItem('enableHintButton');
+      if (savedEnableHintButton) {
+        setEnableHintButton(JSON.parse(savedEnableHintButton));
       }
     };
 
@@ -67,7 +79,7 @@ export default function ReviewModeContent() {
     return () => clearInterval(interval);
   }, [isLoading, feedback, showResultModal]);
 
-  // Show hint after 10 seconds
+  // Show hint after 10 seconds (auto-hint system)
   useEffect(() => {
     if (timer >= 10 && !feedback) {
       setShowHint(true);
@@ -118,17 +130,13 @@ export default function ReviewModeContent() {
         }
         
         const data = await response.json();
-        console.log('📚 Fetched vocab batch:', data);
-        console.log(`📊 Total words received: ${data.count}`);
         
         // API returns { success, words, count }
         if (data.words && Array.isArray(data.words)) {
           if (data.words.length === 0) {
-            console.log('⚠️ No words available - all words reviewed for today');
             if (isMounted) setWords([]);
           } else {
             if (isMounted) setWords(data.words);
-            console.log(`✅ Loaded ${data.words.length} words for practice`);
           }
         } else {
           throw new Error('Invalid data format from API');
@@ -171,17 +179,13 @@ export default function ReviewModeContent() {
       }
       
       const data = await response.json();
-      console.log('📚 Fetched vocab batch:', data);
-      console.log(`📊 Total words received: ${data.count}`);
       
       // API returns { success, words, count }
       if (data.words && Array.isArray(data.words)) {
         if (data.words.length === 0) {
-          console.log('⚠️ No words available - all words reviewed for today');
           setWords([]);
         } else {
           setWords(data.words);
-          console.log(`✅ Loaded ${data.words.length} words for practice`);
         }
       } else {
         throw new Error('Invalid data format from API');
@@ -210,6 +214,7 @@ export default function ReviewModeContent() {
       vocab_id: currentWord.vocab_id,
       correct: isCorrect,
       time_taken: timer,
+      hintUsed: hintUsed,
     };
     setGameResults((prev) => [...prev, result]);
 
@@ -226,11 +231,38 @@ export default function ReviewModeContent() {
     }, 2000);
   };
 
+  const handleHintButtonClick = () => {
+    if (feedback || showHint) return; // Don't trigger if already showing hint or feedback
+    
+    // Trigger hint reveal AND auto-fill revealed letters (same as auto-hint system)
+    setShowHint(true);
+    setHintButtonClicked(true);
+    setHintUsed(true);
+    
+    // Auto-fill revealed letters into userAnswer (just like auto-hint does at 10 seconds)
+    const currentWord = words[currentIndex];
+    if (currentWord) {
+      const revealedLetters = 1; // Button click reveals at least 1 letter
+      let filledAnswer = '';
+      for (let i = 0; i < currentWord.english.length; i++) {
+        if (i < revealedLetters) {
+          filledAnswer += currentWord.english[i];
+        } else if (userAnswer[i]) {
+          filledAnswer += userAnswer[i];
+        } else {
+          break; // Stop if we hit an empty position
+        }
+      }
+      // Only update if we have revealed letters
+      if (revealedLetters > 0) {
+        setUserAnswer(filledAnswer);
+      }
+    }
+  };
+
   const submitAllResults = async (results: GameResult[]) => {
     setIsSubmittingResults(true);
     try {
-      console.log('📤 Submitting batch results:', results);
-      
       const response = await fetch('/api/submitBatch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -242,7 +274,6 @@ export default function ReviewModeContent() {
       }
 
       const data = await response.json();
-      console.log('✅ Batch submission success:', data);
       
       // Show result modal after successful submission
       setShowResultModal(true);
@@ -260,6 +291,8 @@ export default function ReviewModeContent() {
     setShowHint(false);
     setFeedback(null);
     setIsSubmitting(false);
+    setHintButtonClicked(false);
+    setHintUsed(false);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -269,7 +302,17 @@ export default function ReviewModeContent() {
     if (!currentWord) return;
     
     const correctAnswer = currentWord.english;
-    const revealedLetters = showHint ? Math.floor(timer / 10) : 0;
+    
+    // Calculate revealed letters considering both auto-hint and button hint
+    // Button hint guarantees at least 1 revealed letter immediately
+    // Auto-hint reveals based on timer (every 10 seconds)
+    let revealedLetters = 0;
+    if (showHint) {
+      revealedLetters = Math.floor(timer / 10);
+      if (hintButtonClicked && revealedLetters === 0) {
+        revealedLetters = 1; // Button ensures at least 1 letter when clicked
+      }
+    }
     
     // Remove all spaces from input (spaces are auto-added by system)
     // This works for both physical keyboard and virtual keyboard on mobile
@@ -336,7 +379,14 @@ export default function ReviewModeContent() {
     const letters = correctAnswer.split('');
     
     // Calculate how many letters to reveal based on timer (every 10 seconds)
-    const revealedLetters = showHint ? Math.floor(timer / 10) : 0;
+    // If button was clicked, reveal at least 1 letter
+    let revealedLetters = 0;
+    if (showHint) {
+      revealedLetters = Math.floor(timer / 10);
+      if (hintButtonClicked && revealedLetters === 0) {
+        revealedLetters = 1; // Button ensures at least 1 letter when clicked
+      }
+    }
 
     return letters.map((letter, idx) => {
       // Preserve spaces between words
@@ -520,8 +570,25 @@ export default function ReviewModeContent() {
               </motion.div>
             )}
 
-            {/* Submit Button */}
-            <div className="text-center">
+            {/* Hint Button & Submit Button Container */}
+            <div className="flex items-center justify-center gap-3">
+              {/* Hint Button (if enabled) */}
+              {enableHintButton && !feedback && (
+                <button
+                  onClick={handleHintButtonClick}
+                  disabled={showHint}
+                  className={`p-3 sm:p-4 rounded-xl transition-all ${
+                    !showHint
+                      ? 'bg-secondary-purple text-white hover:bg-secondary-purple/80 cursor-pointer'
+                      : 'bg-gray-500/40 text-gray-400 cursor-not-allowed opacity-60'
+                  }`}
+                  title={showHint ? 'Hint already revealed' : 'Click to reveal first letter instantly'}
+                >
+                  <Lightbulb className="w-5 h-5 sm:w-6 sm:h-6" />
+                </button>
+              )}
+
+              {/* Submit Button */}
               <button
                 onClick={handleSubmit}
                 disabled={
@@ -648,7 +715,16 @@ function ResultModal({
   const { theme } = useTheme();
   const correctCount = results.filter((r) => r.correct).length;
   const accuracy = ((correctCount / results.length) * 100).toFixed(0);
-  const avgTime = (results.reduce((sum, r) => sum + r.time_taken, 0) / results.length).toFixed(1);
+  const totalTimeSeconds = results.reduce((sum, r) => sum + r.time_taken, 0);
+  const avgTime = (totalTimeSeconds / results.length).toFixed(1);
+  const totalTime = Math.floor(totalTimeSeconds);
+  
+  // Format total time to MM:SS
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
   
   // Calculate XP gained (with bonus for very fast answers)
   const xpGained = results.reduce((sum, r) => {
@@ -696,7 +772,7 @@ function ResultModal({
             </div>
 
             {/* Accuracy & Time Grid */}
-            <div className="grid grid-cols-2 gap-2 md:gap-4">
+            <div className="grid grid-cols-3 gap-2 md:gap-4">
               <div className={`rounded-lg md:rounded-xl p-2 md:p-4 ${
                 theme === 'dark' 
                   ? 'bg-[#2a2b2e] border border-gray-700' 
@@ -709,6 +785,20 @@ function ResultModal({
                   {accuracy}%
                 </p>
                 <p className="text-gray-500 text-xs mt-1">{correctCount}/{results.length} correct</p>
+              </div>
+
+              <div className={`rounded-lg md:rounded-xl p-2 md:p-4 ${
+                theme === 'dark' 
+                  ? 'bg-[#2a2b2e] border border-gray-700' 
+                  : 'bg-gray-50 border border-gray-200'
+              }`}>
+                <p className={`text-xs mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Total Time
+                </p>
+                <p className={`text-2xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+                  {formatTime(totalTime)}
+                </p>
+                <p className="text-gray-500 text-xs mt-1">{results.length} questions</p>
               </div>
 
               <div className={`rounded-lg md:rounded-xl p-2 md:p-4 ${

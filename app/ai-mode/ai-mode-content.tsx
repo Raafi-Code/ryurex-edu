@@ -7,6 +7,7 @@ import { CheckCircle2, XCircle, Lightbulb, ArrowLeft, RotateCcw, Home, BookOpen,
 import { createClient } from '@/lib/supabase/client';
 import ThemeToggle from '@/components/ThemeToggle';
 import LoadingScreen from '@/components/LoadingScreen';
+import { useTheme } from '@/context/ThemeContext';
 
 interface AiSentenceWord {
   id: number;
@@ -94,7 +95,6 @@ export default function AiModeContent() {
       try {
         // Step 1: Generate Indonesian sentences using Groq
         setLoadingMessage('Generating Indonesian sentences with AI...');
-        console.log('📝 Step 1: Generating sentences with Groq');
 
         const generateResponse = await fetch('/api/ai/generateSentences', {
           method: 'POST',
@@ -111,7 +111,6 @@ export default function AiModeContent() {
         }
 
         const generatedData = await generateResponse.json();
-        console.log('✅ Generated sentences with translations:', generatedData);
 
         if (!generatedData.words || generatedData.words.length === 0) {
           throw new Error('No sentences were generated');
@@ -121,7 +120,6 @@ export default function AiModeContent() {
         if (isMounted) {
           setSentences(generatedData.words);
           setIsLoading(false);
-          console.log(`✅ Loaded ${generatedData.words.length} AI-generated sentences (Indo + English)`);
         }
       } catch (error) {
         console.error('❌ Error loading AI sentences:', error);
@@ -290,8 +288,6 @@ export default function AiModeContent() {
   const submitAllResults = async (results: GameResult[]) => {
     setIsSubmittingResults(true);
     try {
-      console.log('📤 Submitting AI mode results:', results);
-
       const response = await fetch('/api/ai/submitScore', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -308,7 +304,6 @@ export default function AiModeContent() {
       }
 
       const data = await response.json();
-      console.log('✅ Results submitted:', data);
 
       setShowResultModal(true);
     } catch (error) {
@@ -386,6 +381,17 @@ export default function AiModeContent() {
         ? Math.round((correctCount / gameResults.length) * 100)
         : 0;
 
+    // AI Mode doesn't track time by default, focus on accuracy and hints instead
+    const avgTime = 'N/A';
+    const totalTime = 0;
+    
+    // Format total time to MM:SS
+    const formatTime = (seconds: number) => {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
     // Calculate total XP gained (same logic as backend)
     let totalXpGained = 0;
     gameResults.forEach((result) => {
@@ -444,14 +450,12 @@ export default function AiModeContent() {
                 <p className="text-heading-3 font-bold text-text-primary">{accuracy}%</p>
               </div>
               <div className="bg-black/10 dark:bg-white/10 rounded-xl p-3 sm:p-4">
-                <p className="text-label text-text-secondary mb-1">Correct</p>
-                <p className="text-heading-3 font-bold text-text-primary">
-                  {correctCount}/{gameResults.length}
-                </p>
+                <p className="text-label text-text-secondary mb-1">Total Time</p>
+                <p className="text-heading-3 font-bold text-text-primary">{formatTime(totalTime)}</p>
               </div>
               <div className="bg-black/10 dark:bg-white/10 rounded-xl p-3 sm:p-4">
-                <p className="text-label text-text-secondary mb-1">XP</p>
-                <p className="text-heading-3 font-bold text-text-primary">+{totalXpGained}</p>
+                <p className="text-label text-text-secondary mb-1">Avg Time</p>
+                <p className="text-heading-3 font-bold text-text-primary">{avgTime}s</p>
               </div>
             </div>
 

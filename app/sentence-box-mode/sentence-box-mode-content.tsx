@@ -95,7 +95,6 @@ export default function SentenceBoxModeContent() {
     const loadAiSentences = async () => {
       try {
         setLoadingMessage('Generating sentences with AI...');
-        console.log('📝 Generating sentences for Sentence Box Mode');
 
         const generateResponse = await fetch('/api/ai/generateSentences', {
           method: 'POST',
@@ -112,7 +111,6 @@ export default function SentenceBoxModeContent() {
         }
 
         const generatedData = await generateResponse.json();
-        console.log('✅ Generated sentences:', generatedData);
 
         if (!generatedData.words || generatedData.words.length === 0) {
           throw new Error('No sentences were generated');
@@ -121,7 +119,6 @@ export default function SentenceBoxModeContent() {
         if (isMounted) {
           setSentences(generatedData.words);
           setIsLoading(false);
-          console.log(`✅ Loaded ${generatedData.words.length} sentences`);
         }
       } catch (error) {
         console.error('❌ Error loading sentences:', error);
@@ -234,8 +231,6 @@ export default function SentenceBoxModeContent() {
   const submitAllResults = async (results: GameResult[]) => {
     setIsSubmittingResults(true);
     try {
-      console.log('📤 Submitting sentence box mode results:', results);
-
       const response = await fetch('/api/ai/submitScore', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -252,7 +247,6 @@ export default function SentenceBoxModeContent() {
       }
 
       const data = await response.json();
-      console.log('✅ Results submitted:', data);
 
       setShowResultModal(true);
     } catch (error) {
@@ -569,6 +563,16 @@ function ResultModal({
   const { theme } = useTheme();
   const correctCount = results.filter((r) => r.correct).length;
   const accuracy = ((correctCount / results.length) * 100).toFixed(0);
+  // Sentence Box Mode doesn't track time, use placeholder values
+  const avgTime = 'N/A';
+  const totalTime = 0;
+  
+  // Format total time to MM:SS
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   return (
     <motion.div
@@ -606,6 +610,35 @@ function ResultModal({
             <p className="text-black/60 text-sm mt-2">
               {correctCount} of {results.length} correct
             </p>
+          </div>
+
+          {/* Time Cards Grid */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className={`rounded-xl p-4 ${
+              theme === 'dark' 
+                ? 'bg-[#2a2b2e] border border-gray-700' 
+                : 'bg-gray-50 border border-gray-200'
+            }`}>
+              <p className={`text-xs mb-1 font-semibold ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                Total Time
+              </p>
+              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+                {formatTime(totalTime)}
+              </p>
+            </div>
+
+            <div className={`rounded-xl p-4 ${
+              theme === 'dark' 
+                ? 'bg-[#2a2b2e] border border-gray-700' 
+                : 'bg-gray-50 border border-gray-200'
+            }`}>
+              <p className={`text-xs mb-1 font-semibold ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                Avg Time
+              </p>
+              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+                {avgTime}s
+              </p>
+            </div>
           </div>
 
           {/* Buttons */}

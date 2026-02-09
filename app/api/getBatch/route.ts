@@ -49,12 +49,13 @@ export async function GET(request: Request) {
     console.log('=== VOCAB BATCH DEBUG ===');
     console.log(`📅 Today's date: ${today}`);
 
-    // Step 1: Get ALL progress records due today (NO limit yet)
+    // Step 1: Get ALL progress records due TODAY or BEFORE
+    // Using lte() with string comparison: YYYY-MM-DD format allows safe string comparison
     const progressQuery = supabase
       .from('user_vocab_progress')
       .select('vocab_id, fluency, next_due')
       .eq('user_id', user.id)
-      .lte('next_due', today)
+      .lte('next_due', today)  // Filters: next_due <= today (safe with YYYY-MM-DD format)
       .order('next_due', { ascending: true })
       .order('fluency', { ascending: true });
 
@@ -79,6 +80,15 @@ export async function GET(request: Request) {
 
     const vocabIds = progressWords.map(p => p.vocab_id);
     console.log(`✅ Found ${vocabIds.length} words due for review today`);
+    
+    // DEBUG: Log words with future due dates (should be EMPTY)
+    const futureWords = progressWords.filter(p => p.next_due > today);
+    if (futureWords.length > 0) {
+      console.warn(`⚠️ WARNING: ${futureWords.length} words with future due dates found!`);
+      futureWords.forEach(w => {
+        console.warn(`  - vocab_id ${w.vocab_id}: next_due = ${w.next_due} (expected <= ${today})`);
+      });
+    }
 
     // Step 2: Get vocab_master data for these IDs (fast - indexed query)
     let vocabQuery = supabase
@@ -135,6 +145,15 @@ export async function GET(request: Request) {
     const words = allWords.slice(0, numQuestions);
 
     console.log(`📊 Final batch: ${words.length} words (after filters and limit)`);
+    
+    // DEBUG: Log all words in final batch with their due dates
+    words.forEach((w) => {
+      if (!w) return;
+      const isDueToday = w.next_due === today;
+      const isOverdue = w.next_due < today;
+      const status = isDueToday ? '📅 TODAY' : isOverdue ? '⏰ OVERDUE' : '🚫 FUTURE';
+      console.log(`  ${status} - vocab_id ${w.vocab_id}: next_due = ${w.next_due}`);
+    });
 
     return NextResponse.json({
       success: true,

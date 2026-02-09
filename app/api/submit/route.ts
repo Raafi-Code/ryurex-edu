@@ -6,6 +6,7 @@ interface SubmitRequest {
   vocab_id: number;
   correct: boolean;
   time_taken: number; // in seconds
+  hintUsed?: boolean;
 }
 
 export async function POST(request: NextRequest) {
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body: SubmitRequest = await request.json();
-    const { vocab_id, correct, time_taken } = body;
+    const { vocab_id, correct, time_taken, hintUsed } = body;
 
     if (!vocab_id || typeof correct !== 'boolean' || !time_taken) {
       return NextResponse.json(
@@ -66,33 +67,37 @@ export async function POST(request: NextRequest) {
     }
 
     // NEW SYSTEM: Aggressive progression with time-based rewards
+    // If hint is used, normal progression rules apply (no bonus)
+    // If hint is not used, bonus (+2 for all at ≤5s)
     let fluencyChange = 0;
     let daysUntilNext = 0;
     let newFluency = 0;
     
+    const hintWasUsed = hintUsed === true;
+    
     if (correct && time_taken <= 5) {
-      // ⚡ VERY FAST (≤5s) - Double progression!
-      fluencyChange = +2; // Big jump!
+      // ⚡ VERY FAST (≤5s)
+      // If hint used: always +1. If no hint: +2 bonus
+      if (hintWasUsed) {
+        fluencyChange = +1; // Normal progression when hint used
+      } else {
+        fluencyChange = +2; // Bonus progression without hint
+      }
       newFluency = Math.max(0, Math.min(10, currentProgress.fluency + fluencyChange));
       
       // Calculate next review schedule using IMPROVED HYBRID formula
-      // Updated Rule: if f = 0 → days = 0
-      //               if f = 1 → days = 1
-      //               if f = 2 → days = 3 (changed from 2)
-      //               if f ≥ 3 → days = round(7 × 1.7^(f−3))
       if (newFluency === 0) {
         daysUntilNext = 0;
       } else if (newFluency === 1) {
         daysUntilNext = 1;
       } else if (newFluency === 2) {
-        daysUntilNext = 3; // CHANGED from 2 to 3
+        daysUntilNext = 3;
       } else {
         daysUntilNext = Math.round(7 * Math.pow(1.7, newFluency - 3));
-        // f=3→7, f=4→12, f=5→20, f=6→34, f=7→58, f=8→99, f=9→168, f=10→285
       }
       
     } else if (correct && time_taken > 5 && time_taken < 10) {
-      // 🔥 FAST (5-10s) - Normal progression
+      // 🔥 FAST (5-10s) - Normal progression (same for hint or no hint)
       fluencyChange = +1;
       newFluency = Math.max(0, Math.min(10, currentProgress.fluency + fluencyChange));
       

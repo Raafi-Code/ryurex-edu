@@ -29,7 +29,7 @@ export default function CompactNavbar({ title, showBackButton = true }: CompactN
           <div className="flex items-center gap-3">
             {showBackButton && (
               <button
-                onClick={() => router.back()}
+                onClick={() => router.push('/dashboard')}
                 className="p-1.5 hover:bg-background/50 rounded-lg transition-colors cursor-pointer"
               >
                 <ArrowLeft className="w-5 h-5" />

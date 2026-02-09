@@ -198,13 +198,11 @@ export default function PvPGamePage() {
 
       // If AI Mode and questions are cached, use them
       if (game_mode === 'ai' && questions_data) {
-        console.log('📚 Using cached AI questions from lobby');
         return questions_data;
       }
 
       // If AI Mode but no cached questions, fetch from API (fallback)
       if (game_mode === 'ai') {
-        console.log('⚠️ No cached questions, generating AI sentences...');
         const sentenceResponse = await fetch('/api/ai/generateSentences', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -367,9 +365,6 @@ export default function PvPGamePage() {
       if (!response.ok) {
         throw new Error('Failed to submit score');
       }
-
-      console.log('✅ Score submitted:', finalScore);
-      console.log('📊 Game stats:', gameStats);
 
       // Start polling for opponent score
       pollForOpponentScore();

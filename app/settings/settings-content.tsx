@@ -15,6 +15,7 @@ export default function SettingsContent() {
 
   const [displayName, setDisplayName] = useState('');
   const [numQuestions, setNumQuestions] = useState(10);
+  const [enableHintButton, setEnableHintButton] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -36,6 +37,12 @@ export default function SettingsContent() {
           const savedNumQuestions = localStorage.getItem('reviewModeNumQuestions');
           if (savedNumQuestions) {
             setNumQuestions(parseInt(savedNumQuestions, 10));
+          }
+
+          // Load hint button setting from localStorage
+          const savedEnableHintButton = localStorage.getItem('enableHintButton');
+          if (savedEnableHintButton) {
+            setEnableHintButton(JSON.parse(savedEnableHintButton));
           }
         } else {
           router.push('/login');
@@ -96,8 +103,24 @@ export default function SettingsContent() {
     }
   };
 
+  const handleToggleHintButton = () => {
+    const newValue = !enableHintButton;
+    setEnableHintButton(newValue);
+    try {
+      localStorage.setItem('enableHintButton', JSON.stringify(newValue));
+      setMessage({ 
+        type: 'success', 
+        text: newValue ? 'Hint button enabled!' : 'Hint button disabled!' 
+      });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error('Error saving hint button setting:', error);
+      setMessage({ type: 'error', text: 'Failed to save setting' });
+    }
+  };
+
   if (loading) {
-    return <LoadingScreen />;
+    return <LoadingScreen title="Loading your settings" />;
   }
 
   return (
@@ -217,11 +240,46 @@ export default function SettingsContent() {
               </div>
             </motion.div>
 
-            {/* Info Section */}
+            {/* Hint Button Settings Section */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
+              className="bg-card rounded-2xl p-6 md:p-8 shadow-lg border border-theme"
+            >
+              <h2 className="text-heading-2 mb-2">Hint Button in Review Mode</h2>
+              <p className="text-muted-foreground text-body-lg mb-6">
+                Enable or disable the hint button (lightbulb) in Review Mode. When enabled, you can click once per question to reveal the first letter instantly.
+              </p>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-background rounded-lg border border-theme">
+                  <div>
+                    <p className="font-semibold text-foreground">Enable Hint Button</p>
+                    <p className="text-muted-foreground text-body-sm">1 click per question to reveal first letter</p>
+                  </div>
+                  {/* Toggle Switch */}
+                  <button
+                    onClick={handleToggleHintButton}
+                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
+                      enableHintButton ? 'bg-primary-yellow' : 'bg-gray-600'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                        enableHintButton ? 'translate-x-7' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Info Section */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
               className="bg-secondary-purple/10 rounded-2xl p-6 border border-secondary-purple/30"
             >
               <h3 className="text-heading-3 mb-2 text-secondary-purple">💡 Tip</h3>

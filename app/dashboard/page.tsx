@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -59,7 +59,7 @@ export default function DashboardPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [screenSize, setScreenSize] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
   
-  const getCategoriesPerPage = () => {
+  const CATEGORIES_PER_PAGE = useMemo(() => {
     switch (screenSize) {
       case 'mobile':
         return 9; // 3 columns × 3 rows
@@ -69,9 +69,7 @@ export default function DashboardPage() {
       default:
         return 14; // 5+ columns × 3 rows
     }
-  };
-  
-  const CATEGORIES_PER_PAGE = getCategoriesPerPage();
+  }, [screenSize]);
   const router = useRouter();
   const supabase = createClient();
 
@@ -135,7 +133,7 @@ export default function DashboardPage() {
     return () => {
       isMounted = false;
     };
-  }, [supabase.auth]);
+  }, []); // Empty dependency array: fetch only once on mount
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

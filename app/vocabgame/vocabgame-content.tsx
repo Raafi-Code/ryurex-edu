@@ -7,6 +7,7 @@ import { Clock, CheckCircle2, XCircle, Lightbulb, ArrowLeft, RotateCcw, ChevronR
 import { createClient } from '@/lib/supabase/client';
 import ThemeToggle from '@/components/ThemeToggle';
 import LoadingScreen from '@/components/LoadingScreen';
+import { useTheme } from '@/context/ThemeContext';
 
 interface VocabWord {
   vocab_id: number;
@@ -136,18 +137,14 @@ export default function VocabGameContent() {
         }
         
         const data = await response.json();
-        console.log('📚 Fetched custom vocab batch:', data);
-        console.log(`📊 Selected: ${data.count} words, Total available: ${data.total_available}`);
-        console.log(`🎯 Filter: category=${category}, subcategory=${subcategory}`);
+
         
         // API returns { success, words, count, total_available }
         if (data.words && Array.isArray(data.words)) {
           if (data.words.length === 0) {
-            console.log('⚠️ No words available for this category and subcategory');
             if (isMounted) setWords([]);
           } else {
             if (isMounted) setWords(data.words);
-            console.log(`✅ Loaded ${data.words.length} words for custom practice`);
           }
         } else {
           throw new Error('Invalid data format from API');
@@ -190,18 +187,14 @@ export default function VocabGameContent() {
       }
       
       const data = await response.json();
-      console.log('📚 Fetched custom vocab batch:', data);
-      console.log(`📊 Selected: ${data.count} words, Total available: ${data.total_available}`);
-      console.log(`🎯 Filter: category=${category}, subcategory=${subcategory}`);
+
       
       // API returns { success, words, count, total_available }
       if (data.words && Array.isArray(data.words)) {
         if (data.words.length === 0) {
-          console.log('⚠️ No words available for this category and subcategory');
           setWords([]);
         } else {
           setWords(data.words);
-          console.log(`✅ Loaded ${data.words.length} words for custom practice`);
         }
       } else {
         throw new Error('Invalid data format from API');
@@ -249,8 +242,6 @@ export default function VocabGameContent() {
   const submitAllResults = async (results: GameResult[]) => {
     setIsSubmittingResults(true);
     try {
-      console.log('📤 Submitting batch results:', results);
-      
       const response = await fetch('/api/submitBatch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -262,7 +253,6 @@ export default function VocabGameContent() {
       }
 
       const data = await response.json();
-      console.log('✅ Batch submission success:', data);
       
       // Check if next part exists before showing modal
       try {
@@ -275,7 +265,6 @@ export default function VocabGameContent() {
             (sub: { subcategory: number; word_count: number }) => sub.subcategory === nextSubcategory && sub.word_count > 0
           );
           setHasNextPart(!!nextPartExists);
-          console.log('Next part exists:', nextPartExists);
         }
       } catch (error) {
         console.error('Error checking next part:', error);
@@ -422,7 +411,7 @@ export default function VocabGameContent() {
             There are no words in &quot;{category}&quot; Part {subcategory} yet. Please try another category or part.
           </p>
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push(`/category-menu/${category}`)}
             className="px-6 py-3 bg-primary-yellow text-black rounded-lg font-semibold hover:scale-105 transition-transform cursor-pointer"
           >
             Back to Menu
@@ -447,7 +436,7 @@ export default function VocabGameContent() {
           <div className="flex items-center justify-between mb-2 sm:mb-3 gap-2">
             <div className="flex-1">
               <button
-                onClick={() => router.back()}
+                onClick={() => router.push(`/category-menu/${category}`)}
                 className="flex items-center gap-2 text-text-secondary hover:text-primary-yellow transition-colors cursor-pointer text-body-lg"
               >
                 <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5" />
@@ -657,7 +646,7 @@ export default function VocabGameContent() {
           results={gameResults}
           subcategory={subcategory || ''}
           hasNextPart={hasNextPart}
-          onClose={() => router.back()}
+          onClose={() => router.push(`/category-menu/${category}`)}
           onPlayAgain={() => {
             setShowResultModal(false);
             setIsLoading(true);
@@ -696,10 +685,20 @@ function ResultModal({
   onPlayAgain: () => void;
   onNextPart: (nextSubcategory: number) => void;
 }) {
+  const { theme } = useTheme();
 
   const correctCount = results.filter((r) => r.correct).length;
   const accuracy = ((correctCount / results.length) * 100).toFixed(0);
-  const avgTime = (results.reduce((sum, r) => sum + r.time_taken, 0) / results.length).toFixed(1);
+  const totalTimeSeconds = results.reduce((sum, r) => sum + r.time_taken, 0);
+  const avgTime = (totalTimeSeconds / results.length).toFixed(1);
+  const totalTime = Math.floor(totalTimeSeconds);
+  
+  // Format total time to MM:SS
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
   
   // Calculate XP gained (with bonus for very fast answers)
   const xpGained = results.reduce((sum, r) => {
@@ -726,15 +725,17 @@ function ResultModal({
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: 0.1 }}
         onClick={(e) => e.stopPropagation()}
-        className="border-2 border-primary-yellow rounded-2xl md:rounded-3xl p-4 md:p-8 max-w-sm sm:max-w-md md:max-w-lg w-full shadow-2xl bg-card-darker"
+        className={`border-2 border-primary-yellow rounded-2xl md:rounded-3xl p-4 md:p-8 max-w-xs sm:max-w-sm md:max-w-md w-full shadow-2xl ${
+          theme === 'dark' ? 'bg-card-darker' : 'bg-white'
+        }`}
       >
         <div className="text-center space-y-3 md:space-y-6">
           {/* Title */}
           <div className="space-y-1 md:space-y-2">
-            <h2 className="text-xl md:text-3xl font-bold text-white">
+            <h2 className={`text-xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
               Session Complete!
             </h2>
-            <p className="text-xs md:text-sm text-gray-400">
+            <p className={`text-xs md:text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
               Great job on finishing {results.length} questions
             </p>
           </div>
@@ -748,25 +749,47 @@ function ResultModal({
             </div>
 
             {/* Accuracy & Time Grid */}
-            <div className="grid grid-cols-2 gap-2 md:gap-4">
-              <div className="rounded-lg md:rounded-xl p-2 md:p-4 bg-card-darker border border-gray-700">
-                <p className="text-xs mb-1 text-gray-400">
+            <div className="grid grid-cols-3 gap-2 md:gap-4">
+              <div className={`rounded-lg md:rounded-xl p-2 md:p-4 ${
+                theme === 'dark'
+                  ? 'bg-card-darker border border-gray-700'
+                  : 'bg-gray-50 border border-gray-200'
+              }`}>
+                <p className={`text-xs mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                   Accuracy
                 </p>
-                <p className="text-2xl md:text-3xl font-bold text-white">
+                <p className={`text-2xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
                   {accuracy}%
                 </p>
-                <p className="text-gray-500 text-xs mt-1">{correctCount}/{results.length} correct</p>
+                <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>{correctCount}/{results.length} correct</p>
               </div>
 
-              <div className="rounded-lg md:rounded-xl p-2 md:p-4 bg-card-darker border border-gray-700">
-                <p className="text-xs mb-1 text-gray-400">
+              <div className={`rounded-lg md:rounded-xl p-2 md:p-4 ${
+                theme === 'dark'
+                  ? 'bg-card-darker border border-gray-700'
+                  : 'bg-gray-50 border border-gray-200'
+              }`}>
+                <p className={`text-xs mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Total Time
+                </p>
+                <p className={`text-2xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+                  {formatTime(totalTime)}
+                </p>
+                <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>{results.length} questions</p>
+              </div>
+
+              <div className={`rounded-lg md:rounded-xl p-2 md:p-4 ${
+                theme === 'dark'
+                  ? 'bg-card-darker border border-gray-700'
+                  : 'bg-gray-50 border border-gray-200'
+              }`}>
+                <p className={`text-xs mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                   Avg Time
                 </p>
-                <p className="text-2xl md:text-3xl font-bold text-white">
+                <p className={`text-2xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
                   {avgTime}s
                 </p>
-                <p className="text-gray-500 text-xs mt-1">per question</p>
+                <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>per question</p>
               </div>
             </div>
           </div>

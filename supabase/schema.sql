@@ -285,6 +285,38 @@ CREATE POLICY "Player 2 can join lobby"
   );
 
 -- ============================================
+-- Stored Functions & RPC Endpoints
+-- ============================================
+
+-- Get category statistics with aggregated count
+-- Returns: category name, total vocab count, learned vocab count per user
+-- Used by: Categories browse API to avoid fetching massive rows
+CREATE OR REPLACE FUNCTION get_category_stats(p_user_id UUID)
+RETURNS TABLE(
+  category TEXT,
+  total_count BIGINT,
+  learned_count BIGINT
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    vm.category,
+    COUNT(DISTINCT vm.id)::BIGINT as total_count,
+    COUNT(DISTINCT CASE WHEN uvp.fluency > 0 THEN uvp.vocab_id END)::BIGINT as learned_count
+  FROM vocab_master vm
+  LEFT JOIN user_vocab_progress uvp 
+    ON vm.id = uvp.vocab_id 
+    AND uvp.user_id = p_user_id
+  WHERE vm.category IS NOT NULL
+  GROUP BY vm.category
+  ORDER BY vm.category ASC;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- Grant permission to authenticated users
+GRANT EXECUTE ON FUNCTION get_category_stats(UUID) TO authenticated;
+
+-- ============================================
 -- NOTES
 -- ============================================
 -- 1. Run this SQL in Supabase SQL Editor
@@ -293,3 +325,6 @@ CREATE POLICY "Player 2 can join lobby"
 -- 4. User profile is auto-created when user signs up
 -- 5. PvP lobbies expire after 5 minutes if no one joins
 -- 6. Scores are calculated locally on client, submitted to server at game end
+-- 7. RPC function get_category_stats() aggregates category stats at database level
+--    for optimal performance when browsing categories (no row limit issues)
+```

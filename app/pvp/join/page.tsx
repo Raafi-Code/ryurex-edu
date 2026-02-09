@@ -213,8 +213,6 @@ export default function JoinGamePage() {
         return;
       }
 
-      console.log('[JOIN SUCCESS]', { gameCode, userId: user.id, newStatus: 'opponent_joined' });
-
       // Redirect to lobby page
       router.push(`/pvp/lobby/${gameCode}`);
     } catch (err) {
