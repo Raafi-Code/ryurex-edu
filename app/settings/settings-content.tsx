@@ -8,6 +8,7 @@ import { Save, AlertCircle, CheckCircle } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import CompactNavbar from '@/components/CompactNavbar';
 import LoadingScreen from '@/components/LoadingScreen';
+import Footer from '@/components/Footer';
 
 export default function SettingsContent() {
   const router = useRouter();
@@ -291,8 +292,8 @@ export default function SettingsContent() {
         </div>
       </div>
 
-      {/* Footer spacing */}
-      <div className="h-16" />
+      {/* Footer */}
+      <Footer />
     </div>
   );
 }

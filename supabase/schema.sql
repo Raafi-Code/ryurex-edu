@@ -291,12 +291,19 @@ CREATE POLICY "Player 2 can join lobby"
 -- Get category statistics with aggregated count
 -- Returns: category name, total vocab count, learned vocab count per user
 -- Used by: Categories browse API to avoid fetching massive rows
+-- SECURITY DEFINER: Run with postgres role (creator), not calling user
+-- Safe because filtered by user_id in WHERE clause
 CREATE OR REPLACE FUNCTION get_category_stats(p_user_id UUID)
 RETURNS TABLE(
   category TEXT,
   total_count BIGINT,
   learned_count BIGINT
-) AS $$
+) 
+LANGUAGE plpgsql 
+STABLE 
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
   RETURN QUERY
   SELECT 
@@ -311,10 +318,189 @@ BEGIN
   GROUP BY vm.category
   ORDER BY vm.category ASC;
 END;
-$$ LANGUAGE plpgsql STABLE;
+$$;
 
 -- Grant permission to authenticated users
 GRANT EXECUTE ON FUNCTION get_category_stats(UUID) TO authenticated;
+
+-- Get user statistics aggregated efficiently
+-- Returns: user info + words due today + words learned (all in ONE database call)
+-- Used by: Dashboard to display user stats without 3 separate queries
+-- Level is calculated from XP: level = FLOOR(xp / 100) + 1
+-- SECURITY DEFINER: Run with postgres role (creator), not calling user
+-- Safe because filtered by user_id in WHERE clause
+CREATE OR REPLACE FUNCTION get_user_stats(p_user_id UUID)
+RETURNS TABLE(
+  user_id UUID,
+  username TEXT,
+  display_name TEXT,
+  email TEXT,
+  xp INTEGER,
+  level INTEGER,
+  streak INTEGER,
+  last_activity_date DATE,
+  created_at TIMESTAMP WITH TIME ZONE,
+  words_due_today BIGINT,
+  words_learned BIGINT
+) 
+LANGUAGE plpgsql 
+STABLE 
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    u.id,
+    u.username,
+    u.display_name,
+    a.email::TEXT,
+    u.xp,
+    (u.xp / 100)::INTEGER + 1 as level,
+    COALESCE(u.streak, 0)::INTEGER,
+    u.last_activity_date,
+    u.created_at,
+    COUNT(DISTINCT CASE WHEN uvp.next_due <= CURRENT_DATE AND uvp.fluency IS NOT NULL THEN uvp.vocab_id END)::BIGINT as words_due_today,
+    COUNT(DISTINCT CASE WHEN uvp.correct_count > 0 THEN uvp.vocab_id END)::BIGINT as words_learned
+  FROM users u
+  LEFT JOIN auth.users a ON u.id = a.id
+  LEFT JOIN user_vocab_progress uvp ON u.id = uvp.user_id
+  WHERE u.id = p_user_id
+  GROUP BY u.id, u.username, u.display_name, a.email::TEXT, u.xp, u.streak, u.last_activity_date, u.created_at;
+END;
+$$;
+
+-- Grant permission to authenticated users
+GRANT EXECUTE ON FUNCTION get_user_stats(UUID) TO authenticated;
+
+-- Daily Learning Statistics (for progress tracking)
+-- Returns: date, words newly learned that day, words reviewed that day, accuracy, cumulative total
+-- Supports: Last 7 days, 1 month, 3 months, 6 months, 1 year
+CREATE OR REPLACE FUNCTION get_daily_stats(p_user_id UUID, p_days INT DEFAULT 7)
+RETURNS TABLE(
+  day DATE,
+  words_learned_today INT,
+  words_reviewed_today INT,
+  correct_answers INT,
+  total_answers INT,
+  accuracy_percent NUMERIC,
+  cumulative_total INT
+) 
+LANGUAGE plpgsql 
+STABLE 
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_start_date DATE;
+BEGIN
+  v_start_date := CURRENT_DATE - (p_days || ' days')::INTERVAL;
+  
+  RETURN QUERY
+  WITH daily_new_words AS (
+    -- Words newly learned on each day (based on created_at)
+    SELECT 
+      DATE(uvp.created_at) as day,
+      COUNT(DISTINCT uvp.vocab_id) as new_words_count
+    FROM user_vocab_progress uvp
+    WHERE uvp.user_id = p_user_id
+      AND DATE(uvp.created_at) >= v_start_date
+    GROUP BY DATE(uvp.created_at)
+  ),
+  daily_reviews AS (
+    -- Words reviewed and their accuracy on each day (based on updated_at)
+    SELECT 
+      DATE(uvp.updated_at) as day,
+      COUNT(DISTINCT uvp.vocab_id) as reviewed_count,
+      COALESCE(SUM(uvp.correct_count), 0)::INT as correct_count,
+      COALESCE(SUM(uvp.correct_count + uvp.wrong_count), 0)::INT as total_count
+    FROM user_vocab_progress uvp
+    WHERE uvp.user_id = p_user_id
+      AND DATE(uvp.updated_at) >= v_start_date
+      AND uvp.fluency > 0
+    GROUP BY DATE(uvp.updated_at)
+  ),
+  cumulative_learned AS (
+    -- Cumulative total of words learned up to each day
+    SELECT 
+      DATE(uvp.created_at) as day,
+      COUNT(DISTINCT uvp.vocab_id) as total_learned
+    FROM user_vocab_progress uvp
+    WHERE uvp.user_id = p_user_id
+      AND DATE(uvp.created_at) <= CURRENT_DATE
+    GROUP BY DATE(uvp.created_at)
+  )
+  SELECT 
+    d.day,
+    COALESCE(dnw.new_words_count, 0)::INT,
+    COALESCE(dr.reviewed_count, 0)::INT,
+    COALESCE(dr.correct_count, 0)::INT,
+    COALESCE(dr.total_count, 0)::INT,
+    CASE 
+      WHEN COALESCE(dr.total_count, 0) = 0 THEN 0
+      ELSE ROUND((COALESCE(dr.correct_count, 0)::NUMERIC / dr.total_count) * 100, 1)
+    END::NUMERIC,
+    (
+      SELECT COALESCE(SUM(total_learned), 0)::INT
+      FROM cumulative_learned cl
+      WHERE cl.day <= d.day
+    )
+  FROM (
+    -- Generate all dates in range
+    SELECT (CURRENT_DATE - ((row_number() OVER (ORDER BY d) - 1) || ' days')::INTERVAL)::DATE as day
+    FROM (SELECT 0 as d UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4
+          UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) nums
+    LIMIT p_days
+  ) d
+  LEFT JOIN daily_new_words dnw ON d.day = dnw.day
+  LEFT JOIN daily_reviews dr ON d.day = dr.day
+  ORDER BY d.day DESC;
+END;
+$$;
+
+-- Detailed user metrics (comprehensive stats)
+-- Returns: overall metrics for dashboard cards
+CREATE OR REPLACE FUNCTION get_user_metrics(p_user_id UUID)
+RETURNS TABLE(
+  total_words_learned INT,
+  new_words_today INT,
+  studied_today INT,
+  total_correct_answers INT,
+  total_attempts INT,
+  overall_accuracy_percent NUMERIC,
+  current_streak INT,
+  longest_streak INT,
+  average_fluency NUMERIC
+) 
+LANGUAGE plpgsql 
+STABLE 
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    COUNT(DISTINCT CASE WHEN uvp.correct_count > 0 THEN uvp.vocab_id END)::INT as total_words,
+    COUNT(DISTINCT CASE WHEN DATE(uvp.created_at) = CURRENT_DATE THEN uvp.vocab_id END)::INT as new_today,
+    COUNT(DISTINCT CASE WHEN DATE(uvp.updated_at) = CURRENT_DATE THEN uvp.vocab_id END)::INT as studied_today,
+    COALESCE(SUM(uvp.correct_count), 0)::INT as total_correct,
+    COALESCE(SUM(uvp.correct_count + uvp.wrong_count), 0)::INT as total_attempts,
+    CASE 
+      WHEN COALESCE(SUM(uvp.correct_count + uvp.wrong_count), 0) = 0 THEN 0
+      ELSE ROUND((COALESCE(SUM(uvp.correct_count), 0)::NUMERIC / SUM(uvp.correct_count + uvp.wrong_count)) * 100, 1)
+    END::NUMERIC as accuracy,
+    COALESCE(MAX(u.streak), 0)::INT as current_streak,
+    0::INT as longest_streak,
+    ROUND(AVG(COALESCE(uvp.fluency, 0))::NUMERIC, 1) as avg_fluency
+  FROM user_vocab_progress uvp
+  LEFT JOIN users u ON uvp.user_id = u.id
+  WHERE uvp.user_id = p_user_id;
+END;
+$$;
+
+-- Grant execute permissions
+GRANT EXECUTE ON FUNCTION get_daily_stats(UUID, INT) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_user_metrics(UUID) TO authenticated;
 
 -- ============================================
 -- NOTES

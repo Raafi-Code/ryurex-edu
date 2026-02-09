@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Plus, LogIn } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import ThemeToggle from '@/components/ThemeToggle';
+import Footer from '@/components/Footer';
 
 export default function PvPPage() {
   const [user, setUser] = useState<SupabaseUser | null>(null);
@@ -201,6 +202,9 @@ export default function PvPPage() {
           </motion.div>
         </div>
       </div>
+
+      {/* Footer */}
+      <Footer />
     </div>
   );
 }

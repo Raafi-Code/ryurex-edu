@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, LogOut, Play, Clock, Search, Settings, Zap, Menu, X, Sword, ChevronDown, Flame, CheckCircle } from 'lucide-react';
+import { BookOpen, LogOut, Play, Clock, Search, Settings, Zap, Menu, X, Sword, ChevronDown, Flame, CheckCircle, TrendingUp } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import Leaderboard from '@/components/Leaderboard';
 import Pagination from '@/components/Pagination';
@@ -299,7 +299,8 @@ export default function DashboardPage() {
               <div className="flex gap-4">
                 {[
                   { href: '/review-mode', icon: Play, bg: 'bg-primary-yellow', text: 'text-black' },
-                  { href: '/pvp', icon: Sword, bg: 'bg-red-500/20', text: 'text-red-500' }
+                  { href: '/pvp', icon: Sword, bg: 'bg-red-500/20', text: 'text-red-500' },
+                  { href: '/progress-stats', icon: TrendingUp, bg: 'bg-green-500/20', text: 'text-green-500' }
                 ].map((mode, index) => (
                   <motion.div
                     key={index}
@@ -312,7 +313,7 @@ export default function DashboardPage() {
                         <mode.icon className={`w-6 h-6 md:w-7 md:h-7 ${mode.text}`} />
                         {/* Tooltip */}
                         <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-foreground rounded-md text-label font-semibold text-background whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg">
-                          {index === 0 ? 'Review' : 'PvP'} Mode
+                          {index === 0 ? 'Review' : index === 1 ? 'PvP' : 'Progress'} Mode
                         </div>
                       </div>
                     </Link>
@@ -344,7 +345,7 @@ export default function DashboardPage() {
               className="overflow-hidden"
             >
               <div className="flex justify-center">
-                <div className="space-y-2 md:grid md:grid-cols-2 md:gap-6 md:max-w-4xl">
+                <div className="space-y-2 md:grid md:grid-cols-3 md:gap-6 md:max-w-6xl">
                 {/* Review Mode */}
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
@@ -403,6 +404,39 @@ export default function DashboardPage() {
                             </div>
                             <span className="text-red-500 font-semibold">
                               Competitive
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                </motion.div>
+
+                {/* Progress Statistics */}
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <Link href="/progress-stats">
+                    <div className="group bg-card border-2 border-green-500 border-opacity-30 rounded-xl md:rounded-3xl p-3 md:p-8 hover:border-green-500 transition-colors cursor-pointer shadow-lg hover:shadow-xl md:min-h-[280px]">
+                      <div className="flex md:flex-col gap-3 md:gap-0">
+                        <div className="flex-shrink-0">
+                          <div className="flex items-center justify-center w-12 h-12 md:w-16 md:h-16 bg-green-500/20 rounded-lg md:rounded-2xl md:mb-4">
+                            <TrendingUp className="w-6 h-6 md:w-8 md:h-8 text-green-500" />
+                          </div>
+                        </div>
+                        <div className="flex-1 md:flex-none min-w-0">
+                          <h3 className="text-heading-3 mb-1 md:mb-2">Progress Stats</h3>
+                          <p className="hidden md:block text-body-lg text-muted-foreground mb-3 md:mb-4">
+                            Track your learning progress and statistics
+                          </p>
+                          <div className="flex items-center space-x-1.5 md:space-x-2 text-label">
+                            <div className="flex-shrink-0 w-5 h-5 md:w-6 md:h-6 bg-green-500/20 rounded-md flex items-center justify-center">
+                              <TrendingUp className="w-3 h-3 md:w-4 md:h-4 text-green-500" />
+                            </div>
+                            <span className="text-green-500 font-semibold">
+                              Analytics
                             </span>
                           </div>
                         </div>
@@ -605,7 +639,7 @@ export default function DashboardPage() {
       <ScrollToTopButton />
 
       {/* Full-width Footer */}
-      <Footer />
+      <Footer fullContent={true} />
     </div>
   );
 }

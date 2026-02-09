@@ -10,6 +10,7 @@ import CompactNavbar from '@/components/CompactNavbar';
 import Pagination from '@/components/Pagination';
 import ScrollToTopButton from '@/components/ScrollToTopButton';
 import LoadingScreen from '@/components/LoadingScreen';
+import Footer from '@/components/Footer';
 import { useTheme } from '@/context/ThemeContext';
 
 // Helper function to convert 'a1-oxford' to 'A1 Oxford'
@@ -52,6 +53,10 @@ const categoryImages: { [key: string]: string } = {
   'place': '/images/categories/place.svg',
   'object': '/images/categories/object.svg',
   'a1-oxford': '/images/categories/a1-oxford.svg',
+  'a2-oxford': '/images/categories/a2-oxford.svg',
+  'b1-oxford': '/images/categories/b1-oxford.svg',
+  'b2-oxford': '/images/categories/b2-oxford.svg',
+  'c1-oxford': '/images/categories/c1-oxford.svg',
 };
 
 // Fallback emoji if image not found
@@ -301,12 +306,13 @@ export default function CategoryMenuPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Navbar */}
-      <CompactNavbar title={categoryData ? formatCategoryName(categoryData.category) : ''} showBackButton={true} />
+    <>
+      <div className="min-h-screen bg-background">
+        {/* Navbar */}
+        <CompactNavbar title={categoryData ? formatCategoryName(categoryData.category) : ''} showBackButton={true} />
 
-      {/* Main Content */}
-      <div className={`px-4 sm:px-6 lg:px-8 pt-18 pb-12`}>
+        {/* Main Content */}
+        <div className={`px-4 sm:px-6 lg:px-8 pt-18 pb-12`}>
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-4">
             {/* Left Side - Subcategory Cards */}
@@ -596,8 +602,12 @@ export default function CategoryMenuPage() {
         </div>
       </div>
 
-      {/* Scroll to Top Button */}
-      <ScrollToTopButton />
-    </div>
+        {/* Scroll to Top Button */}
+        <ScrollToTopButton />
+      </div>
+
+      {/* Footer */}
+      <Footer />
+    </>
   );
 }

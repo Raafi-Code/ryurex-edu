@@ -33,60 +33,44 @@ export async function GET() {
       );
     }
 
-    // Get user stats
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', user.id)
-      .single();
+    // OPTIMIZED: Use RPC function to get all stats in ONE database call
+    // Instead of 3 separate queries, database aggregates everything
+    const { data: statsData, error: rpcError } = await supabase
+      .rpc('get_user_stats', { p_user_id: user.id });
 
-    if (userError || !userData) {
+    if (rpcError || !statsData || statsData.length === 0) {
+      console.error('Error calling get_user_stats RPC:', rpcError);
       return NextResponse.json(
-        { error: 'User profile not found' },
-        { status: 404 }
+        { error: 'Failed to fetch user stats' },
+        { status: 500 }
       );
     }
 
-    // Count words due today
-    const today = new Date().toISOString().split('T')[0];
-    const { count: wordsDueCount } = await supabase
-      .from('user_vocab_progress')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .lte('next_due', today)
-      .not('fluency', 'is', null);
-
-    // Get total words learned (words with at least 1 correct answer)
-    const { count: wordsLearnedCount } = await supabase
-      .from('user_vocab_progress')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .gt('correct_count', 0);
+    const stats = statsData[0];
 
     // Calculate XP progress to next level
     // Simple linear system: Every level needs 100 XP
-    const currentLevelXp = (userData.level - 1) * 100;
-    
-    const xpProgress = userData.xp - currentLevelXp;
+    const currentLevelXp = (stats.level - 1) * 100;
+    const xpProgress = stats.xp - currentLevelXp;
     const xpNeeded = 100; // Fixed 100 XP per level
     const progressPercentage = (xpProgress / xpNeeded) * 100;
 
     return NextResponse.json({
       success: true,
       user: {
-        id: userData.id,
-        username: userData.username,
+        id: stats.user_id,
+        username: stats.username,
         email: user.email,
-        xp: userData.xp,
-        level: userData.level,
-        streak: userData.streak,
-        display_name: userData.display_name,
-        last_activity_date: userData.last_activity_date,
-        created_at: userData.created_at,
+        xp: stats.xp,
+        level: stats.level,
+        streak: stats.streak,
+        display_name: stats.display_name,
+        last_activity_date: stats.last_activity_date,
+        created_at: stats.created_at,
       },
       stats: {
-        words_due_today: wordsDueCount || 0,
-        words_learned: wordsLearnedCount || 0,
+        words_due_today: stats.words_due_today || 0,
+        words_learned: stats.words_learned || 0,
         xp_progress: Math.round(xpProgress),
         xp_needed: xpNeeded,
         progress_percentage: Math.round(progressPercentage),
