@@ -22,7 +22,6 @@
 
 # misc
 .DS_Store
-*.pem
 
 # debug
 npm-debug.log*
@@ -31,7 +30,10 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env*
+.env
+.env.local
+.env.*.local
+.env.production.local
 
 # vercel
 .vercel
@@ -45,3 +47,25 @@ next-env.d.ts
 
 #supabase
 /.supabase*
+supabase/.temp/
+supabase/.branches/
+
+# Database files (backups, exports)
+*.sql
+*.bak
+*.backup
+*.dump
+
+# IDE & Editor personalization
+.vscode/settings.json
+.vscode/launch.json
+.vscode/*.code-workspace
+.idea/
+*.swp
+*.swo
+*~
+
+# Local development & secrets
+local_db/
+*.pem
+keys/
