@@ -5,13 +5,14 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, LogOut, Play, Clock, Search, Settings, Zap, Menu, X, Sword, ChevronDown, Flame, CheckCircle, TrendingUp } from 'lucide-react';
+import { BookOpen, LogOut, Play, Clock, Search, Settings, Zap, Menu, X, Sword, ChevronDown, Flame, CheckCircle, TrendingUp, Cog } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import Leaderboard from '@/components/Leaderboard';
 import Pagination from '@/components/Pagination';
 import ScrollToTopButton from '@/components/ScrollToTopButton';
 import Footer from '@/components/Footer';
 import LoadingScreen from '@/components/LoadingScreen';
+import TypewriterText from '@/components/TypewriterText';
 import Image from 'next/image';
 import { useTheme } from '@/context/ThemeContext';
 
@@ -455,7 +456,7 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.7 }}
-          className="mt-12 mb-12"
+          className="mt-12 mb-32"
         >
           {/* Header with Toggle */}
           <div className="flex justify-center mb-4">
@@ -497,12 +498,56 @@ export default function DashboardPage() {
           </AnimatePresence>
         </motion.div>
 
+        {/* Yellow Section with Typewriter Animation */}
+        <div className="w-screen relative left-1/2 right-1/2 -mx-[50vw] h-40 bg-primary-yellow my-0 flex items-center justify-center overflow-hidden">
+          {/* Left Gear - Desktop Only */}
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+            className="hidden lg:flex absolute left-8 text-black/30"
+          >
+            <Cog className="w-16 h-16" />
+          </motion.div>
+
+          {/* Center Content */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="px-4 sm:px-6 lg:px-8 max-w-4xl relative z-10"
+          >
+            <TypewriterText
+              texts={[
+                'Keep learning, keep growing!',
+                'Reach your dream to go abroad!',
+                'Keep Adaptable like MAHORAGA!!!',
+                'Hi I am Rafi, the developer of this website.',
+                'Hi I am Chisato as Rafi\'s assistant.'
+              ]}
+              speed={80}
+              loopDelay={3000}
+              className="text-3xl md:text-5xl font-bold text-black text-center font-mono"
+              cursorVisible={true}
+            />
+          </motion.div>
+
+          {/* Right Gear - Desktop Only */}
+          <motion.div
+            animate={{ rotate: -360 }}
+            transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+            className="hidden lg:flex absolute right-8 text-black/30"
+          >
+            <Cog className="w-16 h-16" />
+          </motion.div>
+        </div>
+
         {/* Category Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.7 }}
-          className="mt-12"
+          className="mt-32"
         >
           {/* Section Title */}
           <div className="mb-4 md:mb-6">
