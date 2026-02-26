@@ -68,12 +68,44 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Fetch all Indonesian words from the category/subcategory
+    // 1. Fetch all Indonesian words from the category/subcategory via mapping table
+    // Get category id
+    const { data: catData, error: catError } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('name', category)
+      .single();
+
+    if (catError || !catData) {
+      console.error('Category not found:', catError);
+      return NextResponse.json(
+        { error: 'Category not found', success: false },
+        { status: 404 }
+      );
+    }
+
+    // Get vocab IDs from mapping for this subcategory
+    const { data: mappingData, error: mappingError } = await supabase
+      .from('vocab_category_mapping')
+      .select('vocab_id')
+      .eq('category_id', catData.id)
+      .eq('subcategory_name', subcategory);
+
+    if (mappingError || !mappingData || mappingData.length === 0) {
+      console.error('No mappings found:', mappingError);
+      return NextResponse.json(
+        { error: 'No vocabulary found for this category/subcategory', success: false },
+        { status: 404 }
+      );
+    }
+
+    const vocabIds = mappingData.map(m => m.vocab_id);
+
+    // Fetch vocab data
     const { data: vocabWords, error: fetchError } = await supabase
       .from('vocab_master')
-      .select('id, indo, english, class, category, subcategory')
-      .eq('category', category)
-      .eq('subcategory', parseInt(subcategory))
+      .select('id, indo, english_primary, synonyms, class')
+      .in('id', vocabIds)
       .order('id');
 
     if (fetchError) {
@@ -191,12 +223,13 @@ Return ONLY a JSON array with this exact structure, no other text, no markdown c
         id: vocab.id,
         vocab_id: vocab.id,
         indo: vocab.indo,
-        english: vocab.english,
+        english_primary: vocab.english_primary,
+        synonyms: vocab.synonyms || [],
         class: vocab.class,
-        category: vocab.category,
-        subcategory: vocab.subcategory,
+        category: category,
+        subcategory: subcategory,
         sentence_indo: sentenceIndo || `${vocab.indo} adalah...`,
-        sentence_english: sentenceEnglish || `This is a ${vocab.english}...`,
+        sentence_english: sentenceEnglish || `This is a ${vocab.english_primary}...`,
       };
     });
 

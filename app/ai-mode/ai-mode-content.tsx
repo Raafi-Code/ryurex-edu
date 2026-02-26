@@ -12,10 +12,11 @@ import { useTheme } from '@/context/ThemeContext';
 interface AiSentenceWord {
   id: number;
   indo: string;
-  english: string;
+  english_primary: string;
+  synonyms: string[];
   class: string;
   category: string;
-  subcategory: number;
+  subcategory: string;
   sentence_indo: string;
   sentence_english: string;
 }
@@ -101,7 +102,7 @@ export default function AiModeContent() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             category,
-            subcategory: parseInt(subcategory),
+            subcategory, // No longer using parseInt as it's a string (topic name)
           }),
         });
 
@@ -294,7 +295,7 @@ export default function AiModeContent() {
         body: JSON.stringify({
           results,
           category,
-          subcategory: parseInt(subcategory || '0'),
+          subcategory, // Pass as string
         }),
       });
 
@@ -678,7 +679,7 @@ export default function AiModeContent() {
               {category}
             </span>
             <span className="inline-block px-2 sm:px-4 py-1 bg-primary-yellow text-black text-label font-semibold rounded-full">
-              Part {subcategory}
+              {subcategory}
             </span>
           </div>
         </div>

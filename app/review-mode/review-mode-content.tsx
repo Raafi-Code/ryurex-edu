@@ -12,7 +12,8 @@ import { useTheme } from '@/context/ThemeContext';
 interface Word {
   vocab_id: number;
   indo: string;
-  english: string;
+  english_primary: string;
+  synonyms: string[];
   class: string;
   category: string;
   subcategory: number;
@@ -89,9 +90,9 @@ export default function ReviewModeContent() {
         const revealedLetters = Math.floor(timer / 10);
         // Build the correct answer with revealed letters
         let filledAnswer = '';
-        for (let i = 0; i < currentWord.english.length; i++) {
+        for (let i = 0; i < currentWord.english_primary.length; i++) {
           if (i < revealedLetters) {
-            filledAnswer += currentWord.english[i];
+            filledAnswer += currentWord.english_primary[i];
           } else if (userAnswer[i]) {
             filledAnswer += userAnswer[i];
           } else {
@@ -204,7 +205,9 @@ export default function ReviewModeContent() {
 
     setIsSubmitting(true);
     const currentWord = words[currentIndex];
-    const isCorrect = userAnswer.trim().toLowerCase() === currentWord.english.toLowerCase();
+    const isCorrect = 
+      userAnswer.trim().toLowerCase() === currentWord.english_primary.toLowerCase() ||
+      (currentWord.synonyms || []).some(s => s.toLowerCase() === userAnswer.trim().toLowerCase());
 
     // Show feedback
     setFeedback(isCorrect ? 'correct' : 'wrong');
@@ -244,9 +247,9 @@ export default function ReviewModeContent() {
     if (currentWord) {
       const revealedLetters = 1; // Button click reveals at least 1 letter
       let filledAnswer = '';
-      for (let i = 0; i < currentWord.english.length; i++) {
+      for (let i = 0; i < currentWord.english_primary.length; i++) {
         if (i < revealedLetters) {
-          filledAnswer += currentWord.english[i];
+          filledAnswer += currentWord.english_primary[i];
         } else if (userAnswer[i]) {
           filledAnswer += userAnswer[i];
         } else {
@@ -301,7 +304,7 @@ export default function ReviewModeContent() {
     
     if (!currentWord) return;
     
-    const correctAnswer = currentWord.english;
+    const correctAnswer = currentWord.english_primary;
     
     // Calculate revealed letters considering both auto-hint and button hint
     // Button hint guarantees at least 1 revealed letter immediately
@@ -365,7 +368,7 @@ export default function ReviewModeContent() {
     // Only allow Enter if answer is complete (same condition as Submit button)
     if (e.key === 'Enter' && !isSubmitting && !feedback) {
       const currentWord = words[currentIndex];
-      if (userAnswer.trim() && userAnswer.length === currentWord?.english.length) {
+      if (userAnswer.trim() && userAnswer.length >= 1) {
         handleSubmit();
       }
     }
@@ -375,7 +378,7 @@ export default function ReviewModeContent() {
   const renderUnderscoreDisplay = () => {
     if (!words[currentIndex]) return null;
     
-    const correctAnswer = words[currentIndex].english;
+    const correctAnswer = words[currentIndex].english_primary;
     const letters = correctAnswer.split('');
     
     // Calculate how many letters to reveal based on timer (every 10 seconds)
@@ -537,7 +540,7 @@ export default function ReviewModeContent() {
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   disabled={!!feedback}
-                  maxLength={currentWord.english.length}
+                  maxLength={currentWord.english_primary.length}
                   className="absolute inset-0 opacity-0 w-full h-full cursor-default"
                   autoFocus
                   style={{ caretColor: 'transparent' }}
@@ -593,7 +596,6 @@ export default function ReviewModeContent() {
                 onClick={handleSubmit}
                 disabled={
                   !userAnswer.trim() || 
-                  userAnswer.length !== words[currentIndex]?.english.length || 
                   isSubmitting || 
                   !!feedback
                 }
@@ -623,7 +625,7 @@ export default function ReviewModeContent() {
                     ) : (
                       <>
                         <XCircle className="w-8 h-8" />
-                        <span>Wrong! The answer is: {currentWord.english}</span>
+                        <span>Wrong! The answer is: {currentWord.english_primary}</span>
                       </>
                     )}
                   </div>

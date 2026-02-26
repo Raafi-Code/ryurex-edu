@@ -39,16 +39,13 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-card border-b border-theme">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-xl border-b border-theme">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 cursor-pointer">
-            <Image src="/favicon.svg" width={32} height={32} alt="Ryurex" />
-            <div className="flex flex-col">
-              <div className="text-lg font-bold text-primary-yellow">Ryurex</div>
-              <div className="text-xs font-semibold text-primary-yellow">EDU</div>
-            </div>
+            <Image src="/R Icon No BG.png" width={32} height={32} alt="RyuLearn" className="rounded-sm dark:bg-white/90" />
+            <span className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">RyuLearn</span>
           </Link>
 
           {/* Desktop Menu */}

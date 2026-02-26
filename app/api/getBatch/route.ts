@@ -91,21 +91,45 @@ export async function GET(request: Request) {
     }
 
     // Step 2: Get vocab_master data for these IDs (fast - indexed query)
-    let vocabQuery = supabase
-      .from('vocab_master')
-      .select('id, indo, english, class, category, subcategory')
-      .in('id', vocabIds);
+    // If category/subcategory filter is provided, filter via mapping table
+    let filteredVocabIds = vocabIds;
 
-    // Apply filters if provided
     if (categoryFilter) {
       console.log(`🎯 Filtering by category: ${categoryFilter}`);
-      vocabQuery = vocabQuery.eq('category', categoryFilter);
+      // Get category id
+      const { data: catData } = await supabase
+        .from('categories')
+        .select('id')
+        .eq('name', categoryFilter)
+        .single();
+
+      if (catData) {
+        let mappingQuery = supabase
+          .from('vocab_category_mapping')
+          .select('vocab_id')
+          .eq('category_id', catData.id)
+          .in('vocab_id', vocabIds);
+
+        if (subcategoryFilter) {
+          console.log(`📊 Filtering by subcategory: ${subcategoryFilter}`);
+          mappingQuery = mappingQuery.eq('subcategory_name', subcategoryFilter);
+        }
+
+        const { data: mappingData } = await mappingQuery;
+        if (mappingData) {
+          filteredVocabIds = mappingData.map(m => m.vocab_id);
+        } else {
+          filteredVocabIds = [];
+        }
+      } else {
+        filteredVocabIds = [];
+      }
     }
 
-    if (subcategoryFilter) {
-      console.log(`📊 Filtering by subcategory: ${subcategoryFilter}`);
-      vocabQuery = vocabQuery.eq('subcategory', parseInt(subcategoryFilter));
-    }
+    let vocabQuery = supabase
+      .from('vocab_master')
+      .select('id, indo, english_primary, synonyms, class')
+      .in('id', filteredVocabIds);
 
     const { data: vocabData, error: vocabError } = await vocabQuery;
 
@@ -131,10 +155,9 @@ export async function GET(request: Request) {
         return {
           vocab_id: vocab.id,
           indo: vocab.indo,
-          english: vocab.english,
+          english_primary: vocab.english_primary,
+          synonyms: vocab.synonyms || [],
           class: vocab.class,
-          category: vocab.category,
-          subcategory: vocab.subcategory,
           fluency: progress?.fluency || 0,
           next_due: progress?.next_due || today,
         };

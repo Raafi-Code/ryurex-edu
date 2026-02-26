@@ -22,8 +22,9 @@ const formatCategoryName = (category: string): string => {
 };
 
 interface Subcategory {
-  subcategory: number;
+  subcategory_name: string;
   word_count: number;
+  order_priority: number;
   learned_count?: number; // Words with fluency > 0
 }
 
@@ -35,7 +36,7 @@ interface CategoryData {
 
 interface VocabItem {
   id: number;
-  english: string;
+  english_primary: string;
   indo: string;
 }
 
@@ -84,7 +85,7 @@ export default function CategoryMenuPage() {
   const categoryName = categorySlug ? decodeURIComponent(categorySlug) : '';
 
   const [categoryData, setCategoryData] = useState<CategoryData | null>(null);
-  const [selectedSubcategory, setSelectedSubcategory] = useState<number | null>(null);
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
   const [vocabList, setVocabList] = useState<VocabItem[]>([]);
   const [reviewModeCount, setReviewModeCount] = useState(0);
   const [categoryProgress, setCategoryProgress] = useState(0);
@@ -150,29 +151,37 @@ export default function CategoryMenuPage() {
           // Get vocab IDs that have fluency > 0
           const learnedVocabIds = new Set(progressData.map(p => p.vocab_id));
           
-          // Fetch vocab data to map vocab_id to subcategory
-          const { data: vocabData } = await supabase
-            .from('vocab_master')
-            .select('id, subcategory')
-            .eq('category', categoryName)
-            .in('id', Array.from(learnedVocabIds));
+          // Fetch vocab_category_mapping for this category to map learned vocab_ids to subcategories
+          const { data: catData } = await supabase
+            .from('categories')
+            .select('id')
+            .eq('name', categoryName)
+            .single();
 
-          if (vocabData) {
-            // Count learned words per subcategory
-            const learnedCountMap: { [key: number]: number } = {};
-            vocabData.forEach(vocab => {
-              const subcat = vocab.subcategory || 1;
-              learnedCountMap[subcat] = (learnedCountMap[subcat] || 0) + 1;
-            });
+          if (catData) {
+            const { data: mappingData } = await supabase
+              .from('vocab_category_mapping')
+              .select('vocab_id, subcategory_name')
+              .eq('category_id', catData.id)
+              .in('vocab_id', Array.from(learnedVocabIds));
 
-            // Add learned_count to each subcategory
-            data.subcategories = data.subcategories.map((sub: Subcategory) => ({
-              ...sub,
-              learned_count: learnedCountMap[sub.subcategory] || 0
-            }));
-          }
+            if (mappingData) {
+              // Count learned words per subcategory_name (topic)
+              const learnedCountMap: { [key: string]: number } = {};
+              mappingData.forEach(item => {
+                const subcat = item.subcategory_name;
+                learnedCountMap[subcat] = (learnedCountMap[subcat] || 0) + 1;
+              });
+
+              // Add learned_count to each subcategory
+              data.subcategories = data.subcategories.map((sub: Subcategory) => ({
+                ...sub,
+                learned_count: learnedCountMap[sub.subcategory_name] || 0
+              }));
+            }
           }
         }
+      }
       
       setCategoryData(data);
 
@@ -189,14 +198,22 @@ export default function CategoryMenuPage() {
           const today = new Date().toISOString().split('T')[0];
           
           // Fetch vocab items that are due today from this category
-          // Step 1: Get all vocab IDs from this category
-          const { data: categoryVocabIds } = await supabase
-            .from('vocab_master')
+          // Step 1: Get category id
+          const { data: catIdData } = await supabase
+            .from('categories')
             .select('id')
-            .eq('category', categoryName);
+            .eq('name', categoryName)
+            .single();
 
-          if (categoryVocabIds && categoryVocabIds.length > 0) {
-            const vocabIdList = categoryVocabIds.map(v => v.id);
+          if (catIdData) {
+            // Get all vocab IDs from mapping for this category
+            const { data: categoryVocabMapping } = await supabase
+              .from('vocab_category_mapping')
+              .select('vocab_id')
+              .eq('category_id', catIdData.id);
+
+            if (categoryVocabMapping && categoryVocabMapping.length > 0) {
+              const vocabIdList = categoryVocabMapping.map(v => v.vocab_id);
             
             // Step 2: Count vocab_progress entries that are due today and belong to this category
             const { data: dueVocabData, error } = await supabase
@@ -209,8 +226,9 @@ export default function CategoryMenuPage() {
             if (!error && dueVocabData) {
               setReviewModeCount(dueVocabData.length);
             }
-          } else {
-            setReviewModeCount(0);
+            } else {
+              setReviewModeCount(0);
+            }
           }
         }
       } catch (error) {
@@ -234,15 +252,37 @@ export default function CategoryMenuPage() {
     const fetchVocabList = async () => {
       if (selectedSubcategory !== null && categoryName) {
         try {
-          const { data: vocabData } = await supabase
-            .from('vocab_master')
-            .select('id, english, indo')
-            .eq('category', categoryName)
-            .eq('subcategory', selectedSubcategory)
-            .order('english', { ascending: true });
-          
-          if (vocabData) {
-            setVocabList(vocabData);
+          // Get category id
+          const { data: catData } = await supabase
+            .from('categories')
+            .select('id')
+            .eq('name', categoryName)
+            .single();
+
+          if (catData) {
+            // Get vocab IDs from mapping for this subcategory
+            const { data: mappingData } = await supabase
+              .from('vocab_category_mapping')
+              .select('vocab_id')
+              .eq('category_id', catData.id)
+              .eq('subcategory_name', selectedSubcategory);
+
+            if (mappingData && mappingData.length > 0) {
+              const vocabIds = mappingData.map(m => m.vocab_id);
+              const { data: vocabData } = await supabase
+                .from('vocab_master')
+                .select('id, english_primary, indo')
+                .in('id', vocabIds)
+                .order('english_primary', { ascending: true });
+
+              if (vocabData) {
+                setVocabList(vocabData);
+              } else {
+                setVocabList([]);
+              }
+            } else {
+              setVocabList([]);
+            }
           }
         } catch (error) {
           console.error('Error fetching vocab list:', error);
@@ -264,7 +304,7 @@ export default function CategoryMenuPage() {
 
   const handlePlayVocab = () => {
     if (selectedSubcategory !== null) {
-      router.push(`/vocabgame?category=${encodeURIComponent(categoryName)}&subcategory=${selectedSubcategory}`);
+      router.push(`/vocabgame?category=${encodeURIComponent(categoryName)}&subcategory=${encodeURIComponent(selectedSubcategory)}`);
     }
   };
 
@@ -275,13 +315,13 @@ export default function CategoryMenuPage() {
 
   const handlePlayAiMode = () => {
     if (selectedSubcategory !== null) {
-      router.push(`/ai-mode?category=${encodeURIComponent(categoryName)}&subcategory=${selectedSubcategory}`);
+      router.push(`/ai-mode?category=${encodeURIComponent(categoryName)}&subcategory=${encodeURIComponent(selectedSubcategory)}`);
     }
   };
 
   const handlePlaySentenceGame = () => {
     if (selectedSubcategory !== null) {
-      router.push(`/sentence-box-mode?category=${encodeURIComponent(categoryName)}&subcategory=${selectedSubcategory}`);
+      router.push(`/sentence-box-mode?category=${encodeURIComponent(categoryName)}&subcategory=${encodeURIComponent(selectedSubcategory)}`);
     }
   };
 
@@ -402,7 +442,7 @@ export default function CategoryMenuPage() {
               </div>
 
             <h2 className="text-heading-3 text-text-primary mb-4">
-              Choose a Part
+              Choose a Topic
             </h2>
             
             {(() => {
@@ -421,22 +461,22 @@ export default function CategoryMenuPage() {
                       
                       return (
                         <motion.button
-                          key={sub.subcategory}
+                          key={sub.subcategory_name}
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: index * 0.1 }}
-                          onClick={() => setSelectedSubcategory(sub.subcategory)}
+                          onClick={() => setSelectedSubcategory(sub.subcategory_name)}
                           className={`p-4 rounded-xl border-2 transition-all text-left cursor-pointer ${
-                            selectedSubcategory === sub.subcategory
+                            selectedSubcategory === sub.subcategory_name
                               ? 'bg-primary-yellow border-primary-yellow text-black scale-105 shadow-lg'
                               : 'bg-primary-yellow border-primary-yellow text-black hover:scale-102 hover:shadow-md'
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1">
                             <h3 className="text-label font-bold">
-                              Part {sub.subcategory}
+                              {sub.subcategory_name}
                             </h3>
-                            {selectedSubcategory === sub.subcategory && (
+                            {selectedSubcategory === sub.subcategory_name && (
                               <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center">
                                 <svg className="w-4 h-4 text-primary-yellow" fill="currentColor" viewBox="0 0 20 20">
                                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -445,7 +485,7 @@ export default function CategoryMenuPage() {
                             )}
                           </div>
                           <p className={`text-xs mb-2 ${
-                            selectedSubcategory === sub.subcategory ? 'text-black/70 font-medium' : 'text-black/60'
+                            selectedSubcategory === sub.subcategory_name ? 'text-black/70 font-medium' : 'text-black/60'
                           }`}>
                             {sub.word_count} words
                           </p>
@@ -459,7 +499,7 @@ export default function CategoryMenuPage() {
                               />
                             </div>
                             <p className={`text-xs hidden sm:block ${
-                              selectedSubcategory === sub.subcategory ? 'text-black/60 font-medium' : 'text-black/50'
+                              selectedSubcategory === sub.subcategory_name ? 'text-black/60 font-medium' : 'text-black/50'
                             }`}>
                               {learnedCount}/{totalWords} ({Math.round(progressPercentage)}%)
                             </p>
@@ -565,7 +605,7 @@ export default function CategoryMenuPage() {
               {/* Info Text */}
               {selectedSubcategory === null && (
                 <p className="text-center text-xs text-text-secondary/60">
-                  👆 Select a part above
+                  👆 Select a topic above
                 </p>
               )}
 
@@ -574,7 +614,7 @@ export default function CategoryMenuPage() {
                 <div className="bg-card rounded-2xl overflow-hidden col-span-1 lg:col-span-2 mt-auto shadow-lg">
                   <div className="bg-primary-yellow/20 px-3 py-2 border-b border-primary-yellow/20">
                     <div className="text-sm font-semibold text-text-primary">
-                      Words in Part {selectedSubcategory}
+                      Words in {selectedSubcategory}
                     </div>
                   </div>
                   <div className="overflow-hidden">
@@ -582,7 +622,7 @@ export default function CategoryMenuPage() {
                       <div key={vocab.id} className={`px-3 py-1 flex ${index % 2 === 0 ? 'bg-background/50' : 'bg-background'}`}>
                         <div className="flex-1">
                           <div className="text-sm font-medium text-text-primary">
-                            {vocab.english}
+                            {vocab.english_primary}
                           </div>
                         </div>
                         <div className="border-l border-primary-yellow/30\"></div>

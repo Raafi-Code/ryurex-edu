@@ -29,17 +29,38 @@ CREATE INDEX IF NOT EXISTS idx_users_id ON public.users(id);
 CREATE TABLE IF NOT EXISTS public.vocab_master (
   id serial PRIMARY KEY,
   indo text NOT NULL,
-  english text NOT NULL,
+  english_primary text NOT NULL, -- Primary English word (used for underscore display)
+  synonyms text[] DEFAULT '{}', -- Array of accepted synonyms
   class text,
-  category text,
-  subcategory smallint DEFAULT 1,
   created_at timestamp with time zone DEFAULT now()
 );
 
--- Index for category filtering
-CREATE INDEX IF NOT EXISTS idx_vocab_category ON public.vocab_master(category);
 CREATE INDEX IF NOT EXISTS idx_vocab_class ON public.vocab_master(class);
-CREATE INDEX IF NOT EXISTS idx_vocab_subcategory ON public.vocab_master(category, subcategory);
+
+-- ============================================
+-- Table 2b: categories (Master Category Table)
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.categories (
+  id SERIAL PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL, -- e.g. 'Daily Life', 'Family', 'Kitchen'
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================
+-- Table 2c: vocab_category_mapping (Many-to-Many Junction)
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.vocab_category_mapping (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  vocab_id INTEGER REFERENCES vocab_master(id) ON DELETE CASCADE,
+  category_id INTEGER REFERENCES categories(id) ON DELETE CASCADE,
+  subcategory_name TEXT NOT NULL, -- Topic name, e.g. 'Main Family', 'Kitchen Tools'
+  order_priority INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_mapping_category ON public.vocab_category_mapping(category_id);
+CREATE INDEX IF NOT EXISTS idx_mapping_subcategory ON public.vocab_category_mapping(subcategory_name);
+CREATE INDEX IF NOT EXISTS idx_mapping_vocab ON public.vocab_category_mapping(vocab_id);
 
 -- ============================================
 -- Table 3: user_vocab_progress
@@ -90,6 +111,20 @@ CREATE POLICY "Users can insert own data"
 -- Vocab master policies (read-only for all authenticated users)
 CREATE POLICY "Authenticated users can view vocab"
   ON public.vocab_master FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- Categories: read-only for all authenticated users
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Authenticated users can view categories"
+  ON public.categories FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- Mapping: read-only for all authenticated users
+ALTER TABLE public.vocab_category_mapping ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Authenticated users can view vocab_category_mapping"
+  ON public.vocab_category_mapping FOR SELECT
   TO authenticated
   USING (true);
 
@@ -307,16 +342,16 @@ AS $$
 BEGIN
   RETURN QUERY
   SELECT 
-    vm.category,
-    COUNT(DISTINCT vm.id)::BIGINT as total_count,
+    c.name AS category,
+    COUNT(DISTINCT vcm.vocab_id)::BIGINT as total_count,
     COUNT(DISTINCT CASE WHEN uvp.fluency > 0 THEN uvp.vocab_id END)::BIGINT as learned_count
-  FROM vocab_master vm
+  FROM categories c
+  JOIN vocab_category_mapping vcm ON c.id = vcm.category_id
   LEFT JOIN user_vocab_progress uvp 
-    ON vm.id = uvp.vocab_id 
+    ON vcm.vocab_id = uvp.vocab_id 
     AND uvp.user_id = p_user_id
-  WHERE vm.category IS NOT NULL
-  GROUP BY vm.category
-  ORDER BY vm.category ASC;
+  GROUP BY c.name
+  ORDER BY c.name ASC;
 END;
 $$;
 

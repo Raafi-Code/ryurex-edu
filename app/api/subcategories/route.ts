@@ -44,36 +44,60 @@ export async function GET(request: Request) {
       );
     }
 
-    // Get all words in this category grouped by subcategory
-    const { data: vocabData, error: vocabError } = await supabase
-      .from('vocab_master')
-      .select('subcategory, id')
-      .eq('category', category)
-      .order('subcategory', { ascending: true });
+    // Get category ID from categories table
+    const { data: categoryData, error: categoryError } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('name', category)
+      .single();
 
-    if (vocabError) {
-      console.error('Error fetching subcategories:', vocabError);
+    if (categoryError || !categoryData) {
+      return NextResponse.json(
+        { error: 'Category not found' },
+        { status: 404 }
+      );
+    }
+
+    // Get all subcategories (topics) for this category via mapping table
+    const { data: mappingData, error: mappingError } = await supabase
+      .from('vocab_category_mapping')
+      .select('subcategory_name, vocab_id, order_priority')
+      .eq('category_id', categoryData.id)
+      .order('order_priority', { ascending: true });
+
+    if (mappingError) {
+      console.error('Error fetching subcategories:', mappingError);
       return NextResponse.json(
         { error: 'Failed to fetch subcategories' },
         { status: 500 }
       );
     }
 
-    // Count words per subcategory
-    const subcategoryMap = new Map<number, number>();
-    vocabData?.forEach((item: { subcategory: number }) => {
-      const count = subcategoryMap.get(item.subcategory) || 0;
-      subcategoryMap.set(item.subcategory, count + 1);
+    // Count words per subcategory_name (topic)
+    const subcategoryMap = new Map<string, { word_count: number; order_priority: number }>();
+    mappingData?.forEach((item: { subcategory_name: string; order_priority: number }) => {
+      const existing = subcategoryMap.get(item.subcategory_name);
+      if (existing) {
+        existing.word_count += 1;
+      } else {
+        subcategoryMap.set(item.subcategory_name, {
+          word_count: 1,
+          order_priority: item.order_priority,
+        });
+      }
     });
 
-    // Convert to array
-    const subcategories = Array.from(subcategoryMap.entries()).map(([subcategory, count]) => ({
-      subcategory,
-      word_count: count,
-    }));
+    // Convert to array sorted by order_priority
+    const subcategories = Array.from(subcategoryMap.entries())
+      .map(([subcategory_name, data]) => ({
+        subcategory_name,
+        word_count: data.word_count,
+        order_priority: data.order_priority,
+      }))
+      .sort((a, b) => a.order_priority - b.order_priority);
 
     // Get total words in category
-    const totalWords = vocabData?.length || 0;
+    const totalWords = mappingData?.length || 0;
 
     return NextResponse.json({
       success: true,

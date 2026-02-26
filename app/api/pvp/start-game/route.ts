@@ -25,26 +25,44 @@ async function initializeGroq(): Promise<any> {
 async function generateAISentencesWithGroq(
   supabase: any,
   category: string,
-  subcategory: number,
+  subcategory: string,
   numQuestions: number
 ) {
   try {
     console.log('🤖 Fetching vocab words for AI generation...');
     console.log('📝 Category:', category, 'Subcategory:', subcategory, 'NumQuestions:', numQuestions);
     
-    // Fetch vocab words from database
-    let query = supabase
-      .from('vocab_master')
-      .select('id, indo, english, class, category, subcategory')
-      .eq('category', category);
-    
-    // If subcategory is 0 (Random mode), fetch from all subcategories
-    // Otherwise, fetch from specific subcategory
-    if (subcategory !== 0) {
-      query = query.eq('subcategory', subcategory);
+    // Get category id
+    const { data: catData, error: catError } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('name', category)
+      .single();
+
+    if (catError || !catData) {
+      console.error('Category not found:', catError);
+      return null;
     }
-    
-    const { data: vocabData, error: fetchError } = await query
+
+    // Get vocab IDs from mapping
+    const { data: mappingData, error: mappingError } = await supabase
+      .from('vocab_category_mapping')
+      .select('vocab_id')
+      .eq('category_id', catData.id)
+      .eq('subcategory_name', subcategory);
+
+    if (mappingError || !mappingData || mappingData.length === 0) {
+      console.error('No mappings found:', mappingError);
+      return null;
+    }
+
+    const vocabIds = mappingData.map((m: any) => m.vocab_id);
+
+    // Fetch vocab words
+    const { data: vocabData, error: fetchError } = await supabase
+      .from('vocab_master')
+      .select('id, indo, english_primary, synonyms, class')
+      .in('id', vocabIds)
       .order('id')
       .limit(numQuestions);
 
@@ -56,10 +74,9 @@ async function generateAISentencesWithGroq(
     const vocabWords = vocabData as Array<{
       id: string;
       indo: string;
-      english: string;
+      english_primary: string;
+      synonyms: string[];
       class: string;
-      category: string;
-      subcategory: number;
     }>;
 
     console.log(`✅ Fetched ${vocabWords.length} vocab words`);
@@ -141,12 +158,13 @@ Return ONLY a JSON array with this exact structure, no other text, no markdown c
     const vocabWithAiSentences = vocabWords.map(vocab => ({
       vocab_id: vocab.id,
       indo: vocab.indo,
-      english: vocab.english,
+      english_primary: vocab.english_primary,
+      synonyms: vocab.synonyms || [],
       class: vocab.class,
-      category: vocab.category,
-      subcategory: vocab.subcategory,
+      category: category,
+      subcategory: subcategory,
       sentence_indo: sentenceMapIndo.get(vocab.indo.toLowerCase()) || `${vocab.indo} adalah...`,
-      sentence_english: sentenceMapEnglish.get(vocab.indo.toLowerCase()) || `This is a ${vocab.english}...`,
+      sentence_english: sentenceMapEnglish.get(vocab.indo.toLowerCase()) || `This is a ${vocab.english_primary}...`,
     }));
 
     console.log(`✅ Generated ${vocabWithAiSentences.length} AI sentences for PvP game`);

@@ -19,8 +19,9 @@ const formatCategoryName = (category: string): string => {
 };
 
 interface Subcategory {
-  subcategory: number;
+  subcategory_name: string;
   word_count: number;
+  order_priority: number;
   learned_count?: number;
 }
 
@@ -62,7 +63,7 @@ export default function AiModeSelectPage() {
   
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedSubcategory, setSelectedSubcategory] = useState<number | null>(null);
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
   const [categoryData, setCategoryData] = useState<CategoryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -117,23 +118,32 @@ export default function AiModeSelectPage() {
         if (progressData) {
           const learnedVocabIds = new Set(progressData.map(p => p.vocab_id));
           
-          const { data: vocabData } = await supabase
-            .from('vocab_master')
-            .select('id, subcategory')
-            .eq('category', categoryName)
-            .in('id', Array.from(learnedVocabIds));
+          // Get category id from categories table
+          const { data: catData } = await supabase
+            .from('categories')
+            .select('id')
+            .eq('name', categoryName)
+            .single();
 
-          if (vocabData) {
-            const learnedCountMap: { [key: number]: number } = {};
-            vocabData.forEach(vocab => {
-              const subcat = vocab.subcategory || 1;
-              learnedCountMap[subcat] = (learnedCountMap[subcat] || 0) + 1;
-            });
+          if (catData) {
+            const { data: mappingData } = await supabase
+              .from('vocab_category_mapping')
+              .select('vocab_id, subcategory_name')
+              .eq('category_id', catData.id)
+              .in('vocab_id', Array.from(learnedVocabIds));
 
-            data.subcategories = data.subcategories.map((sub: Subcategory) => ({
-              ...sub,
-              learned_count: learnedCountMap[sub.subcategory] || 0
-            }));
+            if (mappingData) {
+              const learnedCountMap: { [key: string]: number } = {};
+              mappingData.forEach(item => {
+                const subcat = item.subcategory_name;
+                learnedCountMap[subcat] = (learnedCountMap[subcat] || 0) + 1;
+              });
+
+              data.subcategories = data.subcategories.map((sub: Subcategory) => ({
+                ...sub,
+                learned_count: learnedCountMap[sub.subcategory_name] || 0
+              }));
+            }
           }
         }
       }
@@ -156,7 +166,7 @@ export default function AiModeSelectPage() {
 
   const handlePlayAiMode = () => {
     if (selectedCategory && selectedSubcategory !== null) {
-      router.push(`/ai-mode?category=${encodeURIComponent(selectedCategory)}&subcategory=${selectedSubcategory}`);
+      router.push(`/ai-mode?category=${encodeURIComponent(selectedCategory)}&subcategory=${encodeURIComponent(selectedSubcategory)}`);
     }
   };
 
@@ -398,7 +408,7 @@ export default function AiModeSelectPage() {
                 <div>
                   <h1 className="text-heading-1 mb-2">{formatCategoryName(selectedCategory)}</h1>
                   <p className="text-body-lg text-muted-foreground">
-                    Select a part to start practicing with Sentence Mode AI
+                    Select a topic to start practicing with Sentence Mode AI
                   </p>
                 </div>
                 <div className="flex-shrink-0">
@@ -414,7 +424,7 @@ export default function AiModeSelectPage() {
                 {/* Left Side - Subcategory Cards */}
                 <div className="lg:col-span-2 space-y-4">
                   <h2 className="text-heading-2 text-text-primary mb-6">
-                    Choose a Part
+                    Choose a Topic
                   </h2>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -425,22 +435,22 @@ export default function AiModeSelectPage() {
                       
                       return (
                         <motion.button
-                          key={sub.subcategory}
+                          key={sub.subcategory_name}
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: index * 0.1 }}
-                          onClick={() => setSelectedSubcategory(sub.subcategory)}
+                          onClick={() => setSelectedSubcategory(sub.subcategory_name)}
                           className={`p-6 rounded-2xl border-2 transition-all text-left cursor-pointer ${
-                            selectedSubcategory === sub.subcategory
+                            selectedSubcategory === sub.subcategory_name
                               ? 'bg-primary-yellow border-primary-yellow text-black scale-105 shadow-lg'
                               : 'bg-primary-yellow border-primary-yellow text-black hover:scale-102 hover:shadow-md'
                           }`}
                         >
                           <div className="flex items-center justify-between mb-2">
                             <h3 className="text-heading-3 font-bold">
-                              Part {sub.subcategory}
+                              {sub.subcategory_name}
                             </h3>
-                            {selectedSubcategory === sub.subcategory && (
+                            {selectedSubcategory === sub.subcategory_name && (
                               <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center">
                                 <svg className="w-4 h-4 text-primary-yellow" fill="currentColor" viewBox="0 0 20 20">
                                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -449,7 +459,7 @@ export default function AiModeSelectPage() {
                             )}
                           </div>
                           <p className={`text-label mb-3 ${
-                            selectedSubcategory === sub.subcategory ? 'text-black/70 font-medium' : 'text-black/60'
+                            selectedSubcategory === sub.subcategory_name ? 'text-black/70 font-medium' : 'text-black/60'
                           }`}>
                             {sub.word_count} words
                           </p>
@@ -463,7 +473,7 @@ export default function AiModeSelectPage() {
                               />
                             </div>
                             <p className={`text-label text-xs ${
-                              selectedSubcategory === sub.subcategory ? 'text-black/60 font-medium' : 'text-black/50'
+                              selectedSubcategory === sub.subcategory_name ? 'text-black/60 font-medium' : 'text-black/50'
                             }`}>
                               {learnedCount} of {totalWords} learned ({Math.round(progressPercentage)}%)
                             </p>
@@ -505,7 +515,7 @@ export default function AiModeSelectPage() {
                           {categoryData.total_words} words total
                         </p>
                         <p className="text-label text-text-secondary/60 mt-1">
-                          {categoryData.subcategories.length} parts available
+                          {categoryData.subcategories.length} topics available
                         </p>
                       </div>
                     </motion.div>
@@ -528,7 +538,7 @@ export default function AiModeSelectPage() {
                     {/* Info Text */}
                     {selectedSubcategory === null && (
                       <p className="text-center text-label text-text-secondary/60">
-                        👆 Select a part above to start playing
+                        👆 Select a topic above to start playing
                       </p>
                     )}
                   </div>

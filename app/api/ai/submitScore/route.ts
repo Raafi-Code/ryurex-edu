@@ -11,7 +11,7 @@ interface AiModeResult {
 interface SubmitAiModePayload {
   results: AiModeResult[];
   category: string;
-  subcategory: number;
+  subcategory: string;
 }
 
 export async function POST(req: NextRequest) {

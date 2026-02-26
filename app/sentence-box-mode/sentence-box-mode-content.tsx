@@ -101,7 +101,7 @@ export default function SentenceBoxModeContent() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             category,
-            subcategory: parseInt(subcategory),
+            subcategory, // Pass as string
           }),
         });
 
@@ -237,7 +237,7 @@ export default function SentenceBoxModeContent() {
         body: JSON.stringify({
           results,
           category,
-          subcategory: parseInt(subcategory || '0'),
+          subcategory: subcategory || '', // Pass as string
         }),
       });
 

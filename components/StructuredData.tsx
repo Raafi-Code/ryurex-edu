@@ -4,7 +4,7 @@ export default function StructuredData() {
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'WebApplication',
-    name: 'Ryurex Edu',
+    name: 'RyuLearn',
     description: 'Learn English vocabulary through gamification, spaced repetition, and adaptive learning',
     url: 'https://ryurex-edu.vercel.app',
     applicationCategory: 'EducationalApplication',
@@ -15,7 +15,7 @@ export default function StructuredData() {
     },
     author: {
       '@type': 'Organization',
-      name: 'Ryurex Edu',
+      name: 'RyuLearn',
       url: 'https://ryurex-edu.vercel.app',
     },
     aggregateRating: {

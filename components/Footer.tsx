@@ -27,16 +27,16 @@ export default function Footer({ fullContent = false }: FooterProps) {
                 {/* Logo and Company Info Section */}
                 <div className="flex items-center justify-center space-x-2 mb-4">
                   <Image
-                    src="/favicon.svg"
-                    alt="Ryurex Edu Logo"
+                    src="/R Icon No BG.png"
+                    alt="RyuLearn Logo"
                     width={40}
                     height={40}
-                    className="w-10 h-10"
+                    className="w-10 h-10 rounded-md dark:bg-white/90"
                   />
-                  <h3 className="text-heading-3 text-primary-yellow">Ryurex Edu</h3>
+                  <h3 className="text-heading-3 text-foreground">RyuLearn</h3>
                 </div>
                 <p className="text-foreground/70 text-body-lg leading-relaxed max-w-2xl">
-                  Level up your English vocabulary with gamification and spaced repetition. Learn smarter, not harder. Our adaptive learning system adjusts to your pace and learning style, making vocabulary acquisition engaging and effective. Join thousands of learners mastering English vocabulary today.
+                  Level up your English vocabulary with gamification and spaced repetition. Learn smarter, not harder. Our adaptive learning system adjusts to your pace and learning style, making vocabulary acquisition engaging and effective.
                 </p>
               </motion.div>
 
@@ -55,7 +55,7 @@ export default function Footer({ fullContent = false }: FooterProps) {
           >
             {/* Copyright */}
             <div className="text-foreground/60 text-label">
-              © {currentYear} Ryurex Edu. All rights reserved.
+              © 2026 RyuLearn by Ryurex Corp. All rights reserved.
             </div>
           </motion.div>
         </div>

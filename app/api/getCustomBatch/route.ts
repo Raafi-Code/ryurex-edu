@@ -7,8 +7,8 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const searchParams = request.nextUrl.searchParams;
     const category = searchParams.get('category');
-    const subcategory = searchParams.get('subcategory');
-    const isPvP = searchParams.get('isPvP') === 'true'; // New parameter for PvP mode
+    const subcategory = searchParams.get('subcategory'); // Now a topic name string
+    const isPvP = searchParams.get('isPvP') === 'true';
 
     // Validate required parameters
     if (!category || !subcategory) {
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Rate limiting: 20 requests per minute per user
+    // Rate limiting
     const rateLimitResult = checkRateLimit(`getCustomBatch-${user.id}`, RATE_LIMITS.LENIENT);
     if (!rateLimitResult.allowed) {
       return NextResponse.json(
@@ -45,28 +45,68 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const subcategoryInt = parseInt(subcategory);
     console.log('🎮 Custom Batch Request:', {
       userId: user.id,
       category,
-      subcategory: subcategoryInt,
+      subcategory,
       isPvP,
     });
 
-    // Get all words from the specified category and subcategory
-    // No "due today" filter - just fetch all words for custom learning mode
-    let query = supabase
-      .from('vocab_master')
-      .select('id, indo, english, class, category, subcategory')
-      .eq('category', category);
-    
-    // If subcategory is 0 (Random mode), fetch from all subcategories
-    // Otherwise, fetch from specific subcategory
-    if (subcategoryInt !== 0) {
-      query = query.eq('subcategory', subcategoryInt);
+    // Get category ID from categories table
+    const { data: categoryData, error: categoryError } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('name', category)
+      .single();
+
+    if (categoryError || !categoryData) {
+      console.error('Category not found:', category);
+      return NextResponse.json(
+        { error: 'Category not found' },
+        { status: 404 }
+      );
     }
-    
-    const { data: allWords, error: fetchError } = await query.order('id');
+
+    // Get vocab IDs from mapping table for this category + subcategory_name
+    let mappingQuery = supabase
+      .from('vocab_category_mapping')
+      .select('vocab_id')
+      .eq('category_id', categoryData.id);
+
+    // If subcategory is "0" or "random", fetch from all subcategories (Random mode)
+    const isRandomMode = subcategory === '0' || subcategory.toLowerCase() === 'random';
+    if (!isRandomMode) {
+      mappingQuery = mappingQuery.eq('subcategory_name', subcategory);
+    }
+
+    const { data: mappingData, error: mappingError } = await mappingQuery;
+
+    if (mappingError) {
+      console.error('Error fetching mapping:', mappingError);
+      return NextResponse.json(
+        { error: 'Failed to fetch vocabulary words' },
+        { status: 500 }
+      );
+    }
+
+    const vocabIds = mappingData?.map(m => m.vocab_id) || [];
+
+    if (vocabIds.length === 0) {
+      console.log('⚠️ No words found for:', { category, subcategory });
+      return NextResponse.json({
+        success: true,
+        words: [],
+        count: 0,
+        message: 'No words available for this category and subcategory'
+      });
+    }
+
+    // Fetch all vocab words for these IDs — return ALL words (no 10-word limit)
+    const { data: allWords, error: fetchError } = await supabase
+      .from('vocab_master')
+      .select('id, indo, english_primary, synonyms, class')
+      .in('id', vocabIds)
+      .order('id');
 
     if (fetchError) {
       console.error('Error fetching words:', fetchError);
@@ -77,7 +117,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!allWords || allWords.length === 0) {
-      console.log('⚠️ No words found for:', { category, subcategory: subcategoryInt });
+      console.log('⚠️ No vocab_master entries found for IDs:', vocabIds);
       return NextResponse.json({
         success: true,
         words: [],
@@ -86,13 +126,13 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    console.log(`✅ Found ${allWords.length} words in ${category} Part ${subcategory}`);
+    console.log(`✅ Found ${allWords.length} words in ${category} / ${subcategory}`);
 
-    // Get user's progress for these words (to show if they've learned them before)
+    // Get user's progress for these words
     const wordIds = allWords.map(w => w.id);
     const { data: progressData } = await supabase
       .from('user_vocab_progress')
-      .select('vocab_id, ease_factor, interval_days, repetitions, last_review')
+      .select('vocab_id, fluency, correct_count')
       .eq('user_id', user.id)
       .in('vocab_id', wordIds);
 
@@ -105,12 +145,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Separate words into new and review categories
-    const newWords: Array<{ id: number; indo: string; english: string; class: string; category: string; subcategory: number }> = [];
-    const reviewWords: Array<{ id: number; indo: string; english: string; class: string; category: string; subcategory: number }> = [];
+    const newWords: typeof allWords = [];
+    const reviewWords: typeof allWords = [];
 
     allWords.forEach(word => {
       const progress = progressMap.get(word.id);
-      if (!progress || progress.repetitions === 0) {
+      if (!progress || progress.correct_count === 0) {
         newWords.push(word);
       } else {
         reviewWords.push(word);
@@ -123,7 +163,7 @@ export async function GET(request: NextRequest) {
     if (newWords.length > 0) {
       const todayStr = new Date().toISOString().split('T')[0];
       
-      const newProgressEntries = newWords.map((word: { id: number }) => ({
+      const newProgressEntries = newWords.map((word) => ({
         user_id: user.id,
         vocab_id: word.id,
         fluency: 0,
@@ -139,52 +179,29 @@ export async function GET(request: NextRequest) {
         .select();
 
       if (insertError) {
-        // Ignore duplicate key errors (word already exists in progress)
         if (!insertError.message.includes('duplicate key')) {
           console.error('❌ Error inserting new progress:', insertError);
         }
       } else {
         console.log(`✅ Initialized progress for ${newWords.length} new words`);
-        console.log(`   - Words WITH sentence: fluency_sentence=0, next_due_sentence=today`);
-        console.log(`   - Words WITHOUT sentence: fluency_sentence=NULL, next_due_sentence=NULL`);
       }
     }
 
-    // Mix new and review words
-    // Strategy: Start with some review words (if available), then new words
-    let selectedWords: Array<{ id: number; indo: string; english: string; class: string; category: string; subcategory: number }> = [];
-    
-    // Check if this is Random mode (subcategory === 0) for PvP
-    const isRandomMode = subcategoryInt === 0;
+    // Return ALL words for the topic — no 10-word slice limit
+    // For Random PvP mode, return all words for the category
+    let selectedWords: typeof allWords;
     
     if (isRandomMode && isPvP) {
-      // For Random PvP mode, we'll use all words
-      // Just return all available words (game will limit based on num_questions)
       selectedWords = allWords;
       console.log(`🎲 Random Mode PvP: Using all ${allWords.length} words from category`);
-    } else if (reviewWords.length > 0 && newWords.length > 0) {
-      // Mix: 40% review, 60% new (or whatever is available)
-      const reviewCount = Math.min(4, reviewWords.length);
-      const newCount = Math.min(6, newWords.length);
-      
-      selectedWords = [
-        ...reviewWords.slice(0, reviewCount),
-        ...newWords.slice(0, newCount)
-      ];
-    } else if (newWords.length > 0) {
-      // Only new words available
-      selectedWords = newWords.slice(0, 10);
     } else {
-      // Only review words available
-      selectedWords = reviewWords.slice(0, 10);
+      // Return ALL words for the subcategory topic (dynamic subcategory, no fixed limit)
+      selectedWords = allWords;
     }
-
-    // Words sudah diambil sesuai kebutuhan, langsung pakai tanpa shuffle
-    // Tidak perlu randomize lagi setelah fetch
 
     console.log(`🎯 Selected ${selectedWords.length} words for practice`);
 
-    // Get updated progress data for selected words (after inserting new ones)
+    // Get updated progress data for selected words
     const selectedWordIds = selectedWords.map(w => w.id);
     const { data: updatedProgress } = await supabase
       .from('user_vocab_progress')
@@ -192,7 +209,6 @@ export async function GET(request: NextRequest) {
       .eq('user_id', user.id)
       .in('vocab_id', selectedWordIds);
 
-    // Create progress map
     const updatedProgressMap = new Map();
     if (updatedProgress) {
       updatedProgress.forEach(p => {
@@ -200,16 +216,17 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Format response with progress data
-    const formattedWords = selectedWords.map((word: { id: number; indo: string; english: string; class: string; category: string; subcategory: number }) => {
+    // Format response with english_primary + synonyms
+    const formattedWords = selectedWords.map((word) => {
       const progress = updatedProgressMap.get(word.id);
       return {
         vocab_id: word.id,
         indo: word.indo,
-        english: word.english,
+        english_primary: word.english_primary,
+        synonyms: word.synonyms || [],
         class: word.class,
-        category: word.category,
-        subcategory: word.subcategory,
+        category: category,
+        subcategory: subcategory,
         fluency: progress?.fluency || 0,
         next_due: progress?.next_due || new Date().toISOString().split('T')[0],
       };
@@ -221,7 +238,7 @@ export async function GET(request: NextRequest) {
       count: formattedWords.length,
       total_available: allWords.length,
       category,
-      subcategory: parseInt(subcategory)
+      subcategory,
     });
 
   } catch (error) {

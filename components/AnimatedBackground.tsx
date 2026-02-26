@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useTheme } from '@/context/ThemeContext';
 
 interface Particle {
   x: number;
@@ -12,6 +13,7 @@ interface Particle {
 
 export default function AnimatedBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { theme } = useTheme();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -29,9 +31,7 @@ export default function AnimatedBackground() {
 
     // Get theme color
     const getThemeColor = () => {
-      const isDark = document.documentElement.classList.contains('dark') || 
-                     !document.documentElement.classList.contains('light');
-      return isDark ? 'rgba(254, 232, 1, 1)' : 'rgba(245, 196, 0, 1)';
+      return theme === 'dark' ? 'rgba(254, 232, 1, 1)' : 'rgba(245, 196, 0, 1)';
     };
 
     // Particle settings
@@ -53,8 +53,9 @@ export default function AnimatedBackground() {
     let animationId: number;
 
     const animate = () => {
-      // Clear canvas with semi-transparent background for trail effect
-      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--background').trim();
+      // Clear canvas with background color from theme
+      const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--background').trim();
+      ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Update and draw particles
@@ -116,7 +117,7 @@ export default function AnimatedBackground() {
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationId);
     };
-  }, []);
+  }, [theme]);
 
   return (
     <canvas

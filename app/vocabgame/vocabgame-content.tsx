@@ -12,10 +12,11 @@ import { useTheme } from '@/context/ThemeContext';
 interface VocabWord {
   vocab_id: number;
   indo: string;
-  english: string;
+  english_primary: string;
+  synonyms: string[];
   class: string;
   category: string;
-  subcategory: number;
+  subcategory: string;
   fluency: number;
 }
 
@@ -94,9 +95,9 @@ export default function VocabGameContent() {
         const revealedLetters = Math.floor(timer / 10);
         // Build the correct answer with revealed letters
         let filledAnswer = '';
-        for (let i = 0; i < currentWord.english.length; i++) {
+        for (let i = 0; i < currentWord.english_primary.length; i++) {
           if (i < revealedLetters) {
-            filledAnswer += currentWord.english[i];
+            filledAnswer += currentWord.english_primary[i];
           } else if (userAnswer[i]) {
             filledAnswer += userAnswer[i];
           } else {
@@ -213,7 +214,9 @@ export default function VocabGameContent() {
 
     setIsSubmitting(true);
     const currentWord = words[currentIndex];
-    const isCorrect = userAnswer.trim().toLowerCase() === currentWord.english.toLowerCase();
+    const isCorrect = 
+      userAnswer.trim().toLowerCase() === currentWord.english_primary.toLowerCase() ||
+      (currentWord.synonyms || []).some(s => s.toLowerCase() === userAnswer.trim().toLowerCase());
 
     // Show feedback
     setFeedback(isCorrect ? 'correct' : 'wrong');
@@ -261,9 +264,12 @@ export default function VocabGameContent() {
         
         if (checkResponse.ok) {
           const checkData = await checkResponse.json();
-          const nextPartExists = checkData.subcategories?.some(
-            (sub: { subcategory: number; word_count: number }) => sub.subcategory === nextSubcategory && sub.word_count > 0
+          // Check if there's a next subcategory/topic
+          const currentSubcatIndex = checkData.subcategories?.findIndex(
+            (sub: { subcategory_name: string }) => sub.subcategory_name === subcategory
           );
+          const nextPartExists = currentSubcatIndex !== -1 && 
+            currentSubcatIndex < (checkData.subcategories?.length || 0) - 1;
           setHasNextPart(!!nextPartExists);
         }
       } catch (error) {
@@ -295,7 +301,7 @@ export default function VocabGameContent() {
     
     if (!currentWord) return;
     
-    const correctAnswer = currentWord.english;
+    const correctAnswer = currentWord.english_primary;
     const revealedLetters = showHint ? Math.floor(timer / 10) : 0;
     
     // Remove all spaces from input (spaces are auto-added by system)
@@ -348,7 +354,7 @@ export default function VocabGameContent() {
     // Only allow Enter if answer is complete (same condition as Submit button)
     if (e.key === 'Enter' && !isSubmitting && !feedback) {
       const currentWord = words[currentIndex];
-      if (userAnswer.trim() && userAnswer.length === currentWord?.english.length) {
+      if (userAnswer.trim() && userAnswer.length >= 1) {
         handleSubmit();
       }
     }
@@ -358,7 +364,7 @@ export default function VocabGameContent() {
   const renderUnderscoreDisplay = () => {
     if (!words[currentIndex]) return null;
     
-    const correctAnswer = words[currentIndex].english;
+    const correctAnswer = words[currentIndex].english_primary;
     const letters = correctAnswer.split('');
     
     // Calculate how many letters to reveal based on timer (every 10 seconds)
@@ -408,7 +414,7 @@ export default function VocabGameContent() {
           <div className="text-6xl mb-4">📚</div>
           <h2 className="text-2xl font-bold text-text-primary mb-2">No Words Available</h2>
           <p className="text-text-secondary mb-6">
-            There are no words in &quot;{category}&quot; Part {subcategory} yet. Please try another category or part.
+            There are no words in &quot;{category}&quot; Topic &quot;{subcategory}&quot; yet. Please try another category or topic.
           </p>
           <button
             onClick={() => router.push(`/category-menu/${category}`)}
@@ -462,7 +468,7 @@ export default function VocabGameContent() {
               {category}
             </span>
             <span className="inline-block px-2 sm:px-4 py-1 bg-primary-yellow text-black text-label font-semibold rounded-full">
-              Part {subcategory}
+              {subcategory}
             </span>
           </div>
         </div>
@@ -517,7 +523,7 @@ export default function VocabGameContent() {
                   onChange={handleInputChange}
                   onKeyPress={handleKeyPress}
                   disabled={!!feedback}
-                  maxLength={currentWord.english.length}
+                  maxLength={currentWord.english_primary.length}
                   className="absolute inset-0 opacity-0 w-full h-full cursor-default"
                   autoFocus
                   style={{ caretColor: 'transparent' }}
@@ -556,7 +562,6 @@ export default function VocabGameContent() {
                 onClick={handleSubmit}
                 disabled={
                   !userAnswer.trim() || 
-                  userAnswer.length !== words[currentIndex]?.english.length || 
                   isSubmitting || 
                   !!feedback
                 }
@@ -586,7 +591,7 @@ export default function VocabGameContent() {
                     ) : (
                       <>
                         <XCircle className="w-8 h-8" />
-                        <span>Wrong! The answer is: {currentWord.english}</span>
+                        <span>Wrong! The answer is: {currentWord.english_primary}</span>
                       </>
                     )}
                   </div>
@@ -656,11 +661,11 @@ export default function VocabGameContent() {
             resetQuestion();
             fetchWords();
           }}
-          onNextPart={(nextSubcategory) => {
+          onNextPart={(nextSubcategoryName) => {
             setShowResultModal(false);
             setIsLoading(true);
-            // Use window.location for full page reload (same as manual click)
-            const url = `/vocabgame?category=${encodeURIComponent(category || '')}&subcategory=${nextSubcategory}`;
+            // Use window.location for full page reload  
+            const url = `/vocabgame?category=${encodeURIComponent(category || '')}&subcategory=${encodeURIComponent(nextSubcategoryName)}`;
             window.location.href = url;
           }}
         />
@@ -683,9 +688,40 @@ function ResultModal({
   hasNextPart: boolean;
   onClose: () => void;
   onPlayAgain: () => void;
-  onNextPart: (nextSubcategory: number) => void;
+  onNextPart: (nextSubcategoryName: string) => void;
 }) {
   const { theme } = useTheme();
+  // We need to fetch subcategory list to find the next topic
+  const [nextSubcategoryName, setNextSubcategoryName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const findNextSubcategory = async () => {
+      try {
+        // Determine the category from the URL
+        const params = new URLSearchParams(window.location.search);
+        const cat = params.get('category');
+        if (!cat) return;
+
+        const response = await fetch(`/api/subcategories?category=${encodeURIComponent(cat)}`);
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const subcats = data.subcategories || [];
+        const currentIndex = subcats.findIndex(
+          (s: { subcategory_name: string }) => s.subcategory_name === subcategory
+        );
+        if (currentIndex >= 0 && currentIndex < subcats.length - 1) {
+          setNextSubcategoryName(subcats[currentIndex + 1].subcategory_name);
+        }
+      } catch (error) {
+        console.error('Error finding next subcategory:', error);
+      }
+    };
+
+    if (hasNextPart) {
+      findNextSubcategory();
+    }
+  }, [hasNextPart, subcategory]);
 
   const correctCount = results.filter((r) => r.correct).length;
   const accuracy = ((correctCount / results.length) * 100).toFixed(0);
@@ -709,8 +745,9 @@ function ResultModal({
   }, 0);
 
   const handleNextPart = () => {
-    const nextSubcategory = parseInt(String(subcategory)) + 1;
-    onNextPart(nextSubcategory);
+    if (nextSubcategoryName) {
+      onNextPart(nextSubcategoryName);
+    }
   };
 
   return (

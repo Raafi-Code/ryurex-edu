@@ -50,11 +50,15 @@ next-env.d.ts
 supabase/.temp/
 supabase/.branches/
 
-# Database files (backups, exports)
-*.sql
+# Database files (backups, exports, seeds)
 *.bak
 *.backup
 *.dump
+supabase/seed.sql
+supabase/schema.sql
+
+# Documentation
+/docs/
 
 # IDE & Editor personalization
 .vscode/settings.json
