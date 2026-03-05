@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, XCircle, Lightbulb, RotateCcw, Home, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { Lightbulb, RotateCcw, Home, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import LoadingScreen from '@/components/LoadingScreen';
 import { useTheme } from '@/context/ThemeContext';
@@ -11,6 +11,7 @@ import {
   useAuthCheck,
   GameNavbar,
   ProgressBar,
+  FeedbackSubmitButton,
   calculateAccuracy,
   calculateAvgTime,
   calculateXPGained,
@@ -211,27 +212,38 @@ export default function AiSentenceCompletionContent() {
 
   const renderSentenceWithBadge = () => {
     const sentence = currentSentence.sentence_indo;
-    const vocabWordIndo = currentSentence.indo.toLowerCase();
+    const target = currentSentence.indo.toLowerCase().trim();
+    const result: React.ReactNode[] = [];
+    let remaining = sentence;
+    let keyIdx = 0;
 
-    const parts = sentence.split(/(\s+|[.,!?;:'"()-])/);
+    while (remaining.length > 0) {
+      const lowerRemaining = remaining.toLowerCase();
+      const matchIndex = lowerRemaining.indexOf(target);
 
-    return parts.map((part, index) => {
-      if (!part) return null;
-
-      if (part.toLowerCase() === vocabWordIndo) {
-        return (
-          <span key={index} className="inline-block bg-primary-yellow text-black px-2 py-1 rounded font-semibold mx-1">
-            {part}
-          </span>
-        );
+      if (matchIndex === -1) {
+        result.push(<span key={keyIdx++}>{remaining}</span>);
+        break;
       }
 
-      return <span key={index}>{part}</span>;
-    });
+      if (matchIndex > 0) {
+        result.push(<span key={keyIdx++}>{remaining.slice(0, matchIndex)}</span>);
+      }
+
+      result.push(
+        <span key={keyIdx++} className="inline-block bg-primary-yellow text-black px-2 py-1 rounded font-semibold mx-1">
+          {remaining.slice(matchIndex, matchIndex + target.length)}
+        </span>
+      );
+
+      remaining = remaining.slice(matchIndex + target.length);
+    }
+
+    return result;
   };
 
   const handleSubmit = () => {
-    if (isSubmitting || !userAnswer.trim()) return;
+    if (isSubmitting || !userAnswer.trim() || userAnswer.trim().split(/\s+/).length < currentSentence.sentence_english.trim().split(/\s+/).length) return;
 
     setIsSubmitting(true);
 
@@ -256,14 +268,27 @@ export default function AiSentenceCompletionContent() {
     };
     setGameResults((prev) => [...prev, result]);
 
-    setTimeout(() => {
-      if (currentIndex < sentences.length - 1) {
-        setCurrentIndex((prev) => prev + 1);
-        resetQuestion();
-      } else {
-        submitAllResults([...gameResults, result]);
-      }
-    }, 2000);
+    if (isCorrect) {
+      // Auto-advance after 2 seconds for correct answers
+      setTimeout(() => {
+        if (currentIndex < sentences.length - 1) {
+          setCurrentIndex((prev) => prev + 1);
+          resetQuestion();
+        } else {
+          submitAllResults([...gameResults, result]);
+        }
+      }, 2000);
+    }
+    // Wrong answers: user must click "Next" manually
+  };
+
+  const handleNext = () => {
+    if (currentIndex < sentences.length - 1) {
+      setCurrentIndex((prev) => prev + 1);
+      resetQuestion();
+    } else {
+      submitAllResults([...gameResults]);
+    }
   };
 
   const submitAllResults = async (results: GameResult[]) => {
@@ -637,56 +662,19 @@ export default function AiSentenceCompletionContent() {
                   <span>Hint</span>
                   <span className="text-xs sm:text-sm">({hintClickCount})</span>
                 </button>
-
-                <button
-                  onClick={handleSubmit}
-                  disabled={isSubmitting || !userAnswer.trim() || !!feedback}
-                  className="flex-1 py-3 sm:py-3 rounded-xl font-semibold bg-primary-yellow text-black hover:scale-105 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-body-xs sm:text-body-lg flex items-center justify-center"
-                >
-                  {feedback ? (feedback === 'correct' ? '✓ Correct!' : '✗ Wrong!') : 'Check Answer'}
-                </button>
               </div>
             </div>
 
-            {/* Feedback Display */}
-            {feedback && (
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className={`p-4 sm:p-6 rounded-2xl text-center font-bold flex items-center justify-center gap-3 ${
-                  feedback === 'correct'
-                    ? 'bg-green-500/20 border-2 border-green-500/50 text-green-400'
-                    : 'bg-red-500/20 border-2 border-red-500/50 text-red-400'
-                }`}
-              >
-                {feedback === 'correct' ? (
-                  <>
-                    <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
-                    <span className="text-body-sm sm:text-body-lg">Excellent!</span>
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
-                    <span className="text-body-sm sm:text-body-lg">Incorrect</span>
-                  </>
-                )}
-              </motion.div>
-            )}
-
-            {/* Correct Answer Display */}
-            {feedback && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="bg-card border-2 border-theme rounded-2xl p-4 sm:p-6"
-              >
-                <p className="text-label text-text-secondary mb-2">Correct Answer:</p>
-                <p className="text-heading-3 sm:text-heading-2 text-primary-yellow break-words">
-                  {currentSentence.sentence_english}
-                </p>
-              </motion.div>
-            )}
+            {/* Submit + Feedback */}
+            <FeedbackSubmitButton
+              onSubmit={handleSubmit}
+              onNext={handleNext}
+              disabled={!userAnswer.trim() || userAnswer.trim().split(/\s+/).length < currentSentence.sentence_english.trim().split(/\s+/).length}
+              isSubmitting={isSubmitting}
+              feedback={feedback}
+              correctAnswer={currentSentence.sentence_english}
+              submitLabel="Check Answer"
+            />
           </motion.div>
         </AnimatePresence>
       </div>

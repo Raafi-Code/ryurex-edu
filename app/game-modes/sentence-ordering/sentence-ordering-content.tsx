@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, XCircle, RotateCcw, Home } from 'lucide-react';
+import { RotateCcw, Home } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import LoadingScreen from '@/components/LoadingScreen';
 import { useTheme } from '@/context/ThemeContext';
@@ -11,6 +11,7 @@ import {
   useAuthCheck,
   GameNavbar,
   ProgressBar,
+  FeedbackSubmitButton,
   calculateAccuracy,
   fisherYatesShuffle,
   normalizeString,
@@ -61,6 +62,9 @@ export default function SentenceOrderingContent() {
   const [showResultModal, setShowResultModal] = useState(false);
   const [isSubmittingResults, setIsSubmittingResults] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Keyboard typing filter for word selection
+  const [typingFilter, setTypingFilter] = useState('');
 
   // Check authentication
   useAuthCheck(supabase);
@@ -113,6 +117,12 @@ export default function SentenceOrderingContent() {
 
         if (isMounted) {
           setSentences(generatedData.words);
+          
+          // Log if using fallback
+          if (generatedData.usedFallback) {
+            console.log('📚 Using fallback sentences (database backup)');
+          }
+          
           setIsLoading(false);
         }
       } catch (error) {
@@ -176,10 +186,11 @@ export default function SentenceOrderingContent() {
 
     setAnswerBoxes(shuffledBoxes);
     setSelectedAnswer([]);
+    setTypingFilter('');
   };
 
   const handleSubmit = () => {
-    if (isSubmitting || selectedAnswer.length === 0) return;
+    if (isSubmitting || answerBoxes.length > 0) return;
 
     setIsSubmitting(true);
 
@@ -198,13 +209,25 @@ export default function SentenceOrderingContent() {
     };
     setGameResults((prev) => [...prev, result]);
 
-    setTimeout(() => {
-      if (currentIndex < sentences.length - 1) {
-        setCurrentIndex((prev) => prev + 1);
-      } else {
-        submitAllResults([...gameResults, result]);
-      }
-    }, 2000);
+    if (isCorrect) {
+      // Auto-advance after 2 seconds for correct answers
+      setTimeout(() => {
+        if (currentIndex < sentences.length - 1) {
+          setCurrentIndex((prev) => prev + 1);
+        } else {
+          submitAllResults([...gameResults, result]);
+        }
+      }, 2000);
+    }
+    // Wrong answers: user must click "Next" manually
+  };
+
+  const handleNext = () => {
+    if (currentIndex < sentences.length - 1) {
+      setCurrentIndex((prev) => prev + 1);
+    } else {
+      submitAllResults([...gameResults]);
+    }
   };
 
   const submitAllResults = async (results: GameResult[]) => {
@@ -234,28 +257,108 @@ export default function SentenceOrderingContent() {
     }
   };
 
-  const renderSentenceWithBadge = () => {
-    const sentence = currentSentence.sentence_indo;
-    const vocabWordIndo = currentSentence.indo.toLowerCase();
+  // Keyboard typing handler for word selection accessibility
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      // Don't capture if in feedback state, loading, showing result, or focus on interactive elements
+      if (feedback || isLoading || showResultModal || isSubmittingResults) return;
 
-    const parts = sentence.split(/(\s+|[.,!?;:'"()-])/);
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
-    return parts.map((part, index) => {
-      if (!part) return null;
-
-      if (part.toLowerCase() === vocabWordIndo) {
-        return (
-          <span
-            key={index}
-            className="inline-block bg-primary-yellow text-black px-2 py-1 rounded font-semibold mx-1"
-          >
-            {part}
-          </span>
-        );
+      if (e.key === 'Escape') {
+        setTypingFilter('');
+        return;
       }
 
-      return <span key={index}>{part}</span>;
-    });
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        setTypingFilter((prev) => prev.slice(0, -1));
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (typingFilter.length > 0) {
+          const matches = answerBoxes.filter((box) =>
+            box.word.toLowerCase().startsWith(typingFilter.toLowerCase())
+          );
+          if (matches.length > 0) {
+            const selectedBox = matches[0];
+            setAnswerBoxes((prevBoxes) => prevBoxes.filter((b) => b.id !== selectedBox.id));
+            setSelectedAnswer((prevAnswer) => [...prevAnswer, selectedBox]);
+          }
+        }
+        setTypingFilter('');
+        return;
+      }
+
+      // Only accept single alphabetic characters and common punctuation
+      if (e.key.length === 1 && /[a-zA-Z'\-]/.test(e.key)) {
+        e.preventDefault();
+        setTypingFilter((prev) => prev + e.key);
+      }
+    },
+    [feedback, isLoading, showResultModal, isSubmittingResults, answerBoxes, typingFilter]
+  );
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  // Clear typing filter when question changes or feedback appears
+  useEffect(() => {
+    setTypingFilter('');
+  }, [currentIndex, feedback]);
+
+  // Render a word with highlighted prefix if it matches the typing filter
+  const renderWordWithHighlight = (word: string, filter: string) => {
+    if (!filter || !word.toLowerCase().startsWith(filter.toLowerCase())) {
+      return <span>{word}</span>;
+    }
+    const matchLen = filter.length;
+    return (
+      <>
+        <span className="bg-violet-400 text-white rounded-sm px-0.5">{word.slice(0, matchLen)}</span>
+        <span>{word.slice(matchLen)}</span>
+      </>
+    );
+  };
+
+  const renderSentenceWithBadge = () => {
+    const sentence = currentSentence.sentence_indo;
+    const target = currentSentence.indo.toLowerCase().trim();
+    const result: React.ReactNode[] = [];
+    let remaining = sentence;
+    let keyIdx = 0;
+
+    while (remaining.length > 0) {
+      const lowerRemaining = remaining.toLowerCase();
+      const matchIndex = lowerRemaining.indexOf(target);
+
+      if (matchIndex === -1) {
+        result.push(<span key={keyIdx++}>{remaining}</span>);
+        break;
+      }
+
+      if (matchIndex > 0) {
+        result.push(<span key={keyIdx++}>{remaining.slice(0, matchIndex)}</span>);
+      }
+
+      result.push(
+        <span
+          key={keyIdx++}
+          className="inline-block bg-primary-yellow text-black px-2 py-1 rounded font-semibold mx-1"
+        >
+          {remaining.slice(matchIndex, matchIndex + target.length)}
+        </span>
+      );
+
+      remaining = remaining.slice(matchIndex + target.length);
+    }
+
+    return result;
   };
 
   // Loading state
@@ -428,7 +531,6 @@ export default function SentenceOrderingContent() {
 
             {/* Indonesian Sentence with Badge */}
             <div className="text-center">
-              <p className="text-text-secondary text-label mb-3">Translate this sentence to English:</p>
               <div className="bg-surface px-4 sm:px-8 py-4 sm:py-6 rounded-xl border-2 border-text-secondary/20">
                 <p className="text-lg sm:text-xl text-text-primary leading-relaxed">
                   {renderSentenceWithBadge()}
@@ -438,8 +540,18 @@ export default function SentenceOrderingContent() {
 
             {/* Answer Area */}
             <div className="bg-surface px-4 sm:px-6 py-6 rounded-xl border-2 border-primary-yellow/30 min-h-24">
-              <p className="text-text-secondary text-label mb-4">Your Answer:</p>
-              <div className="flex flex-wrap gap-2 mb-4 min-h-12">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-text-secondary text-label">Your Answer:</p>
+                {selectedAnswer.length > 0 && !feedback && (
+                  <button
+                    onClick={handleClear}
+                    className="text-text-secondary hover:text-primary-yellow transition-colors cursor-pointer text-xs sm:text-sm underline"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2 min-h-12">
                 {selectedAnswer.length === 0 ? (
                   <p className="text-text-secondary/60 text-sm italic">Click words below to build your answer</p>
                 ) : (
@@ -456,84 +568,71 @@ export default function SentenceOrderingContent() {
                   ))
                 )}
               </div>
-
-              {/* Clear Button */}
-              {selectedAnswer.length > 0 && (
-                <button
-                  onClick={handleClear}
-                  className="text-text-secondary hover:text-primary-yellow transition-colors cursor-pointer text-xs sm:text-sm underline"
-                >
-                  Clear All
-                </button>
-              )}
             </div>
 
             {/* Answer Boxes */}
             <div className="space-y-3">
-              <p className="text-text-secondary text-label">Available Words:</p>
-              <div className="flex flex-wrap gap-2">
-                {answerBoxes.map((box) => (
-                  <motion.button
-                    key={box.id}
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    onClick={() => handleBoxClick(box)}
-                    disabled={!!feedback}
-                    className={`px-4 py-3 rounded-lg font-semibold transition-all cursor-pointer text-sm sm:text-base ${
-                      feedback
-                        ? 'opacity-50 cursor-not-allowed'
-                        : 'bg-secondary-purple text-white hover:scale-105 hover:shadow-lg'
-                    }`}
-                  >
-                    {box.word}
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-
-            {/* Submit Button */}
-            <div className="text-center pt-4">
-              <button
-                onClick={handleSubmit}
-                disabled={selectedAnswer.length === 0 || isSubmitting || !!feedback}
-                className={`px-8 py-4 rounded-xl font-bold text-lg transition-all cursor-pointer ${
-                  selectedAnswer.length === 0 || isSubmitting || feedback
-                    ? 'bg-primary-yellow text-black opacity-50 cursor-not-allowed'
-                    : 'bg-primary-yellow text-black hover:bg-primary-yellow-hover hover:scale-105'
-                }`}
-              >
-                {isSubmitting ? 'Checking...' : 'Check Answer'}
-              </button>
-            </div>
-
-            {/* Feedback */}
-            <AnimatePresence>
-              {feedback && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  className={`text-center py-6 ${feedback === 'correct' ? 'text-green-400' : 'text-red-400'}`}
-                >
-                  <div className="flex items-center justify-center gap-3 text-2xl font-bold">
-                    {feedback === 'correct' ? (
-                      <>
-                        <CheckCircle2 className="w-8 h-8" />
-                        <span>Correct!</span>
-                      </>
-                    ) : (
-                      <>
-                        <XCircle className="w-8 h-8" />
-                        <span>Incorrect</span>
-                      </>
-                    )}
+              <div className="flex items-center justify-between">
+                <p className="text-text-secondary text-label">Available Words:</p>
+                {typingFilter && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-text-secondary">Typing:</span>
+                    <span className="px-2 py-0.5 bg-violet-500/20 text-violet-400 rounded text-sm font-mono border border-violet-500/30">
+                      {typingFilter}
+                    </span>
+                    <button
+                      onClick={() => setTypingFilter('')}
+                      className="text-text-secondary hover:text-violet-400 text-xs cursor-pointer"
+                    >
+                      ✕
+                    </button>
                   </div>
-                  <p className="text-text-secondary mt-3 text-lg">
-                    Correct answer: {currentSentence.sentence_english}
-                  </p>
-                </motion.div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {answerBoxes.map((box) => {
+                  const isMatch = typingFilter.length > 0 && box.word.toLowerCase().startsWith(typingFilter.toLowerCase());
+                  return (
+                    <motion.button
+                      key={box.id}
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{
+                        scale: isMatch ? 1.05 : 1,
+                        opacity: 1,
+                      }}
+                      onClick={() => {
+                        handleBoxClick(box);
+                        setTypingFilter('');
+                      }}
+                      disabled={!!feedback}
+                      className={`px-4 py-3 rounded-lg font-semibold transition-all cursor-pointer text-sm sm:text-base ${
+                        feedback
+                          ? 'opacity-50 cursor-not-allowed'
+                          : isMatch
+                            ? 'bg-secondary-purple text-white ring-2 ring-violet-400 shadow-lg shadow-violet-500/25 scale-105'
+                            : 'bg-secondary-purple text-white hover:scale-105 hover:shadow-lg'
+                      }`}
+                    >
+                      {renderWordWithHighlight(box.word, typingFilter)}
+                    </motion.button>
+                  );
+                })}
+              </div>
+              {!feedback && answerBoxes.length > 0 && (
+                <p className="text-text-secondary/40 text-xs italic">Tip: Type to filter words, press Enter to select</p>
               )}
-            </AnimatePresence>
+            </div>
+
+            {/* Submit + Feedback */}
+            <FeedbackSubmitButton
+              onSubmit={handleSubmit}
+              onNext={handleNext}
+              disabled={answerBoxes.length > 0}
+              isSubmitting={isSubmitting}
+              feedback={feedback}
+              correctAnswer={currentSentence.sentence_english}
+              submitLabel="Check Answer"
+            />
           </motion.div>
         </AnimatePresence>
       </div>

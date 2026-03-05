@@ -640,7 +640,7 @@ export default function CategoryMenuPage() {
                       Words in {selectedSubcategory}
                     </div>
                   </div>
-                  <div className="overflow-hidden">
+                  <div className={vocabList.length > 10 ? "overflow-y-auto max-h-[320px] scrollbar-yellow" : "overflow-hidden"}>
                     {vocabList.map((vocab, index) => (
                       <div key={vocab.id} className={`px-3 py-1 flex ${index % 2 === 0 ? 'bg-background/50' : 'bg-background'}`}>
                         <div className="flex-1">
@@ -648,7 +648,7 @@ export default function CategoryMenuPage() {
                             {vocab.english_primary}
                           </div>
                         </div>
-                        <div className="border-l border-primary-yellow/30\"></div>
+                        <div className="border-l border-primary-yellow/30"></div>
                         <div className="flex-1 pl-3">
                           <div className="text-sm font-medium text-text-primary">
                             {vocab.indo}

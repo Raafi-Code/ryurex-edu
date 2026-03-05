@@ -208,17 +208,22 @@ export default function FillTheWordContent() {
   }, [category, subcategory, router]);
 
   const handleSubmit = () => {
-    if (isSubmitting || !userAnswer.trim()) return;
+    if (isSubmitting || userAnswer.trim().length < words[currentIndex].blank_answer.length) return;
 
     setIsSubmitting(true);
     const currentWord = words[currentIndex];
 
-    // Check answer: accept blank_answer OR english_primary
+    // Check answer: accept blank_answer, english_primary, or same-length synonyms
     const normalizedUser = normalizeString(userAnswer);
     const normalizedBlank = normalizeString(currentWord.blank_answer);
     const normalizedPrimary = normalizeString(currentWord.english_primary);
 
-    const isCorrect = normalizedUser === normalizedBlank || normalizedUser === normalizedPrimary;
+    const blankLen = currentWord.blank_answer.length;
+    const synonymMatch = (currentWord.synonyms || []).some(
+      (syn) => syn.length === blankLen && normalizeString(syn) === normalizedUser
+    );
+
+    const isCorrect = normalizedUser === normalizedBlank || normalizedUser === normalizedPrimary || synonymMatch;
 
     setFeedback(isCorrect ? 'correct' : 'wrong');
     setIsSubmitting(false); // Checking is done, reset submitting state
@@ -364,25 +369,39 @@ export default function FillTheWordContent() {
     }
   };
 
-  // Render the Indonesian sentence with the target word highlighted
-  const renderSentenceWithBadge = (sentence: string, targetWord: string) => {
-    // Split by whitespace and punctuation, preserving separators
-    const parts = sentence.split(/(\s+|[.,!?;:'"()-])/);
+  // Render the Indonesian sentence with the target word highlighted (supports multi-word vocab)
+  const renderSentenceWithBadge = (sentence: string, targetWord: string): React.ReactNode[] => {
+    const target = targetWord.toLowerCase().trim();
+    const result: React.ReactNode[] = [];
+    let remaining = sentence;
+    let keyIdx = 0;
 
-    return parts.map((part, idx) => {
-      const cleanPart = part.replace(/[.,!?;:'"()-]/g, '').toLowerCase().trim();
-      if (cleanPart === targetWord.toLowerCase().trim()) {
-        return (
-          <span
-            key={idx}
-            className="bg-primary-yellow text-black px-2 py-1 rounded font-semibold mx-0.5"
-          >
-            {part}
-          </span>
-        );
+    while (remaining.length > 0) {
+      const lowerRemaining = remaining.toLowerCase();
+      const matchIndex = lowerRemaining.indexOf(target);
+
+      if (matchIndex === -1) {
+        result.push(<span key={keyIdx++}>{remaining}</span>);
+        break;
       }
-      return <span key={idx}>{part}</span>;
-    });
+
+      if (matchIndex > 0) {
+        result.push(<span key={keyIdx++}>{remaining.slice(0, matchIndex)}</span>);
+      }
+
+      result.push(
+        <span
+          key={keyIdx++}
+          className="bg-primary-yellow text-black px-2 py-1 rounded font-semibold mx-0.5"
+        >
+          {remaining.slice(matchIndex, matchIndex + target.length)}
+        </span>
+      );
+
+      remaining = remaining.slice(matchIndex + target.length);
+    }
+
+    return result;
   };
 
   // Render the English sentence with the blank word replaced by underscore input
@@ -597,7 +616,7 @@ export default function FillTheWordContent() {
             <div className="text-center">
               <button
                 onClick={handleSubmit}
-                disabled={!userAnswer.trim() || isSubmitting || !!feedback}
+                disabled={userAnswer.trim().length < currentWord.blank_answer.length || isSubmitting || !!feedback}
                 className={`w-32 sm:w-40 py-3 sm:py-4 rounded-xl font-bold text-base sm:text-lg transition-all cursor-pointer ${
                   feedback === 'correct'
                     ? 'bg-green-500 text-white'

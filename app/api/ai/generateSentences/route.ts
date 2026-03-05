@@ -125,17 +125,21 @@ export async function POST(req: NextRequest) {
 
     console.log(`📚 Fetched ${vocabWords.length} words for AI sentence generation`);
 
-    // 2. Generate Indonesian sentences using Groq
-    const groq = await initializeGroq();
+    // 2. Try to generate Indonesian sentences using Groq
+    let generatedSentences: Array<{ word: string; sentence_indo: string; sentence_english: string }> = [];
+    let usedFallback = false;
 
-    const indonesianWords = vocabWords.map(w => `"${w.indo}"`).join(', ');
-    
-    // Add randomization to ensure unique prompts and prevent caching
-    const randomSeed = Math.random().toString(36).substring(7);
-    const contextVariety = ['daily life', 'work/school', 'social situations', 'creative scenarios', 'practical uses', 'travel contexts'];
-    const randomContext = contextVariety[Math.floor(Math.random() * contextVariety.length)];
-    
-    const prompt = `Generate one UNIQUE and VARIED natural Indonesian sentence for each of the following words, along with its accurate English translation. Focus on ${randomContext} contexts. For each word:
+    try {
+      const groq = await initializeGroq();
+
+      const indonesianWords = vocabWords.map(w => `"${w.indo}"`).join(', ');
+      
+      // Add randomization to ensure unique prompts and prevent caching
+      const randomSeed = Math.random().toString(36).substring(7);
+      const contextVariety = ['daily life', 'work/school', 'social situations', 'creative scenarios', 'practical uses', 'travel contexts'];
+      const randomContext = contextVariety[Math.floor(Math.random() * contextVariety.length)];
+      
+      const prompt = `Generate one UNIQUE and VARIED natural Indonesian sentence for each of the following words, along with its accurate English translation. Focus on ${randomContext} contexts. For each word:
 1. Create a natural Indonesian sentence using the word in context
 2. Provide an accurate English translation of that sentence
 3. The sentence should be appropriate for language learners (simple, clear, and educational)
@@ -156,41 +160,97 @@ Return ONLY a JSON array with this exact structure, no other text, no markdown c
   ...
 ]`;
 
-    console.log('🤖 Calling Groq API for sentence generation...');
+      console.log('🤖 Calling Groq API for sentence generation...');
 
-    const groqResponse = await groq.chat.completions.create({
-      model: 'openai/gpt-oss-120b',
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      temperature: 1.0,
-      top_p: 0.95,
-      max_tokens: 2000,
-    });
+      const groqResponse = await groq.chat.completions.create({
+        model: 'openai/gpt-oss-120b',
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 1.0,
+        top_p: 0.95,
+        max_tokens: 2000,
+      });
 
-    const generatedContent = groqResponse.choices[0]?.message?.content || '';
-    console.log('📝 Groq response received');
+      const generatedContent = groqResponse.choices[0]?.message?.content || '';
+      console.log('📝 Groq response received');
 
-    // Parse the JSON response
-    let generatedSentences: Array<{ word: string; sentence_indo: string; sentence_english: string }> = [];
-    try {
-      // Extract JSON from response (it might contain extra text)
-      const jsonMatch = generatedContent.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        generatedSentences = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('No JSON array found in response');
+      // Parse the JSON response
+      try {
+        // Extract JSON from response (it might contain extra text)
+        const jsonMatch = generatedContent.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          generatedSentences = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error('No JSON array found in response');
+        }
+      } catch (parseError) {
+        console.error('Failed to parse Groq response:', parseError);
+        console.error('Raw response:', generatedContent);
+        throw new Error('Failed to parse AI-generated sentences');
       }
-    } catch (parseError) {
-      console.error('Failed to parse Groq response:', parseError);
-      console.error('Raw response:', generatedContent);
-      return NextResponse.json(
-        { error: 'Failed to parse AI-generated sentences', success: false },
-        { status: 500 }
-      );
+    } catch (groqError) {
+      console.warn('⚠️ Groq API failed, attempting fallback from database...', groqError);
+      
+      // 2b. Fallback: Try to fetch sentences from sentence_blanks table
+      try {
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('sentence_blanks')
+          .select('vocab_id, sentence_indo, sentence_english')
+          .in('vocab_id', vocabIds)
+          .limit(vocabIds.length);
+
+        if (!fallbackError && fallbackData && fallbackData.length > 0) {
+          console.log(`📚 Found ${fallbackData.length} fallback sentences from database`);
+          
+          // Map fallback sentences to the expected format
+          const fallbackMap = new Map<number, { sentence_indo: string; sentence_english: string }>();
+          fallbackData.forEach((item: any) => {
+            if (!fallbackMap.has(item.vocab_id)) {
+              fallbackMap.set(item.vocab_id, {
+                sentence_indo: item.sentence_indo,
+                sentence_english: item.sentence_english,
+              });
+            }
+          });
+
+          // Convert fallback map to generatedSentences format
+          generatedSentences = vocabWords
+            .filter(vocab => fallbackMap.has(vocab.id))
+            .map(vocab => {
+              const fallback = fallbackMap.get(vocab.id)!;
+              return {
+                word: vocab.indo,
+                sentence_indo: fallback.sentence_indo,
+                sentence_english: fallback.sentence_english,
+              };
+            });
+
+          usedFallback = true;
+          
+          if (generatedSentences.length > 0) {
+            console.log(`✅ Successfully retrieved ${generatedSentences.length} fallback sentences from database`);
+          }
+        } else {
+          console.warn('⚠️ No fallback sentences found in database');
+        }
+      } catch (fallbackError) {
+        console.error('❌ Fallback query also failed:', fallbackError);
+      }
+
+      // 2c. If still no sentences, use simple auto-generated fallback
+      if (generatedSentences.length === 0) {
+        console.log('⚠️ Creating auto-generated fallback sentences...');
+        generatedSentences = vocabWords.map(vocab => ({
+          word: vocab.indo,
+          sentence_indo: `${vocab.indo} adalah kata yang penting untuk dipelajari.`,
+          sentence_english: `"${vocab.english_primary}" is an important word to learn.`,
+        }));
+        usedFallback = true;
+      }
     }
 
     // 3. Create a map of generated sentences (remove trailing dots)
@@ -204,10 +264,14 @@ Return ONLY a JSON array with this exact structure, no other text, no markdown c
       sentenceMapEnglish.set(normalizedWord, cleanedSentenceEnglish);
     });
 
-    console.log('📊 Generated sentences map:');
-    sentenceMapIndo.forEach((sentence, word) => {
-      console.log(`  ${word}: ${sentence.substring(0, 50)}...`);
-    });
+    if (usedFallback) {
+      console.log(`🔄 Using fallback sentences (${generatedSentences.length} sentences)`);
+    } else {
+      console.log('📊 Generated sentences map:');
+      sentenceMapIndo.forEach((sentence, word) => {
+        console.log(`  ${word}: ${sentence.substring(0, 50)}...`);
+      });
+    }
 
     // 4. Build result with both Indonesian and English sentences
     const vocabWithAiSentences = vocabWords.map((vocab, idx) => {
@@ -233,16 +297,23 @@ Return ONLY a JSON array with this exact structure, no other text, no markdown c
       };
     });
 
-    console.log(`✅ Generated ${vocabWithAiSentences.length} AI sentences (Indonesian + English)`);
+    const logMessage = usedFallback 
+      ? `✅ Generated ${vocabWithAiSentences.length} sentences (using database fallback)`
+      : `✅ Generated ${vocabWithAiSentences.length} AI sentences (Indonesian + English)`;
+    console.log(logMessage);
 
     return NextResponse.json({
       success: true,
       words: vocabWithAiSentences,
       count: vocabWithAiSentences.length,
+      usedFallback: usedFallback,
     });
   } catch (error) {
     console.error('❌ Error in generateSentences:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    // If we reach here, something went seriously wrong
+    // Return a 500 error only if we couldn't recover with fallback
     return NextResponse.json(
       { error: `Failed to generate sentences: ${errorMessage}`, success: false },
       { status: 500 }

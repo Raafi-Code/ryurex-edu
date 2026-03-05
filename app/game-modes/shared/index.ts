@@ -16,3 +16,4 @@ export {
 export { default as GameNavbar } from './GameNavbar';
 export { default as ProgressBar } from './ProgressBar';
 export { default as GameResultModal } from './GameResultModal';
+export { default as FeedbackSubmitButton } from './FeedbackSubmitButton';
