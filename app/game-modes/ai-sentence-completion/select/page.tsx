@@ -56,7 +56,7 @@ const categoryImages: { [key: string]: string } = {
   'a1-oxford': '/images/categories/a1-oxford.svg',
 };
 
-export default function AiModeSelectPage() {
+export default function AiSentenceCompletionSelectPage() {
   const { theme } = useTheme();
   const router = useRouter();
   const supabase = createClient();
@@ -166,7 +166,7 @@ export default function AiModeSelectPage() {
 
   const handlePlayAiMode = () => {
     if (selectedCategory && selectedSubcategory !== null) {
-      router.push(`/ai-mode?category=${encodeURIComponent(selectedCategory)}&subcategory=${encodeURIComponent(selectedSubcategory)}`);
+      router.push(`/game-modes/ai-sentence-completion?category=${encodeURIComponent(selectedCategory)}&subcategory=${encodeURIComponent(selectedSubcategory)}`);
     }
   };
 

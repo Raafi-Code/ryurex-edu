@@ -22,18 +22,22 @@
 
 # misc
 .DS_Store
+Thumbs.db
+Desktop.ini
 
-# debug
+# debug / logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 
-# env files (can opt-in for committing if needed)
+# env files
 .env
 .env.local
 .env.*.local
 .env.production.local
+.env.development.local
 
 # vercel
 .vercel
@@ -42,10 +46,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-#.github
-.github*
+# github copilot instructions (personal)
+.github/copilot-instructions.md
 
-#supabase
+# supabase local
 /.supabase*
 supabase/.temp/
 supabase/.branches/
@@ -57,10 +61,10 @@ supabase/.branches/
 supabase/seed.sql
 supabase/schema.sql
 
-# Documentation
+# Documentation (internal)
 /docs/
 
-# IDE & Editor personalization
+# IDE & Editor
 .vscode/settings.json
 .vscode/launch.json
 .vscode/*.code-workspace

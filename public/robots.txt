@@ -1,4 +1,4 @@
-# robots.txt for Ryurex Edu
+# robots.txt for RyuLearn
 User-agent: *
 Allow: /
 Allow: /login
@@ -16,7 +16,7 @@ Disallow: /update-password
 Disallow: /api/
 
 # Sitemap location
-Sitemap: https://ryurex-edu.vercel.app/sitemap.xml
+Sitemap: https://ryulearn.vercel.app/sitemap.xml
 
 # Crawl delay
 Crawl-delay: 1

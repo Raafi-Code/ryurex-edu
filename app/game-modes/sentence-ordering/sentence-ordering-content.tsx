@@ -3,11 +3,18 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, XCircle, ArrowLeft, RotateCcw, Home, Sparkles } from 'lucide-react';
+import { CheckCircle2, XCircle, RotateCcw, Home } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import ThemeToggle from '@/components/ThemeToggle';
 import LoadingScreen from '@/components/LoadingScreen';
 import { useTheme } from '@/context/ThemeContext';
+import {
+  useAuthCheck,
+  GameNavbar,
+  ProgressBar,
+  calculateAccuracy,
+  fisherYatesShuffle,
+  normalizeString,
+} from '../shared';
 
 interface AiSentenceWord {
   id: number;
@@ -15,7 +22,7 @@ interface AiSentenceWord {
   english: string;
   class: string;
   category: string;
-  subcategory: number;
+  subcategory: string;
   sentence_indo: string;
   sentence_english: string;
 }
@@ -33,7 +40,7 @@ interface AnswerBox {
   originalIndex: number;
 }
 
-export default function SentenceBoxModeContent() {
+export default function SentenceOrderingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const category = searchParams.get('category');
@@ -55,19 +62,10 @@ export default function SentenceBoxModeContent() {
   const [isSubmittingResults, setIsSubmittingResults] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check authentication on mount
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/');
-      }
-    };
+  // Check authentication
+  useAuthCheck(supabase);
 
-    checkAuth();
-  }, [router, supabase]);
-
-  // Reset all game state when category or subcategory changes
+  // Reset state
   useEffect(() => {
     setSentences([]);
     setCurrentIndex(0);
@@ -82,7 +80,7 @@ export default function SentenceBoxModeContent() {
     setError(null);
   }, [category, subcategory]);
 
-  // Fetch and generate AI sentences on mount
+  // Fetch AI sentences
   useEffect(() => {
     if (!category || !subcategory) {
       alert('Category and Subcategory are required!');
@@ -99,10 +97,7 @@ export default function SentenceBoxModeContent() {
         const generateResponse = await fetch('/api/ai/generateSentences', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            category,
-            subcategory, // Pass as string
-          }),
+          body: JSON.stringify({ category, subcategory }),
         });
 
         if (!generateResponse.ok) {
@@ -123,8 +118,7 @@ export default function SentenceBoxModeContent() {
       } catch (error) {
         console.error('❌ Error loading sentences:', error);
         if (isMounted) {
-          const errorMessage =
-            error instanceof Error ? error.message : 'Unknown error';
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           setError(errorMessage);
           setIsLoading(false);
         }
@@ -138,26 +132,21 @@ export default function SentenceBoxModeContent() {
     };
   }, [category, subcategory]);
 
-  // Initialize answer boxes when sentences load or current index changes
+  // Initialize answer boxes
   useEffect(() => {
     if (sentences.length > 0) {
       const currentSentence = sentences[currentIndex];
       const words = currentSentence.sentence_english.split(/\s+/);
-      
-      // Create answer boxes and shuffle them
+
       const boxes: AnswerBox[] = words.map((word, idx) => ({
         id: `${currentIndex}-${idx}`,
         word: word,
         originalIndex: idx,
       }));
 
-      // Fisher-Yates shuffle
-      for (let i = boxes.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [boxes[i], boxes[j]] = [boxes[j], boxes[i]];
-      }
+      const shuffledBoxes = fisherYatesShuffle(boxes);
 
-      setAnswerBoxes(boxes);
+      setAnswerBoxes(shuffledBoxes);
       setSelectedAnswer([]);
       setFeedback(null);
       setIsSubmitting(false);
@@ -167,16 +156,15 @@ export default function SentenceBoxModeContent() {
   const currentSentence = sentences[currentIndex];
 
   const handleBoxClick = (box: AnswerBox) => {
-    if (feedback) return; // Disable clicking during feedback
-    
-    // Remove from answer boxes and add to selected
+    if (feedback) return;
+
     setAnswerBoxes((prev) => prev.filter((b) => b.id !== box.id));
     setSelectedAnswer((prev) => [...prev, box]);
   };
 
   const handleRemoveAnswer = (index: number) => {
-    if (feedback) return; // Disable clicking during feedback
-    
+    if (feedback) return;
+
     const removedBox = selectedAnswer[index];
     setSelectedAnswer((prev) => prev.filter((_, i) => i !== index));
     setAnswerBoxes((prev) => [...prev, removedBox].sort((a, b) => a.originalIndex - b.originalIndex));
@@ -184,14 +172,9 @@ export default function SentenceBoxModeContent() {
 
   const handleClear = () => {
     const boxes = [...answerBoxes, ...selectedAnswer];
-    
-    // Fisher-Yates shuffle to randomize
-    for (let i = boxes.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [boxes[i], boxes[j]] = [boxes[j], boxes[i]];
-    }
-    
-    setAnswerBoxes(boxes);
+    const shuffledBoxes = fisherYatesShuffle(boxes);
+
+    setAnswerBoxes(shuffledBoxes);
     setSelectedAnswer([]);
   };
 
@@ -203,11 +186,7 @@ export default function SentenceBoxModeContent() {
     const userSentence = selectedAnswer.map((box) => box.word).join(' ');
     const correctSentence = currentSentence.sentence_english;
 
-    // Normalize both sentences for comparison
-    const normalizeStr = (str: string) =>
-      str.toLowerCase().replace(/[.,!?;:'"]/g, '').trim();
-
-    const isCorrect = normalizeStr(userSentence) === normalizeStr(correctSentence);
+    const isCorrect = normalizeString(userSentence) === normalizeString(correctSentence);
 
     setFeedback(isCorrect ? 'correct' : 'wrong');
 
@@ -237,7 +216,7 @@ export default function SentenceBoxModeContent() {
         body: JSON.stringify({
           results,
           category,
-          subcategory: subcategory || '', // Pass as string
+          subcategory: subcategory || '',
         }),
       });
 
@@ -245,8 +224,6 @@ export default function SentenceBoxModeContent() {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to submit results');
       }
-
-      const data = await response.json();
 
       setShowResultModal(true);
     } catch (error) {
@@ -257,21 +234,6 @@ export default function SentenceBoxModeContent() {
     }
   };
 
-  const handleRetry = () => {
-    router.push(
-      `/sentence-box-mode?category=${encodeURIComponent(category || '')}&subcategory=${subcategory}`
-    );
-  };
-
-  const handleBackToCategory = () => {
-    router.back();
-  };
-
-  const handleBackToDashboard = () => {
-    router.push('/dashboard');
-  };
-
-  // Helper function to highlight the vocabulary word in the sentence
   const renderSentenceWithBadge = () => {
     const sentence = currentSentence.sentence_indo;
     const vocabWordIndo = currentSentence.indo.toLowerCase();
@@ -298,7 +260,7 @@ export default function SentenceBoxModeContent() {
 
   // Loading state
   if (isLoading) {
-    return <LoadingScreen title={loadingMessage} icon={<Sparkles className="w-12 h-12 text-primary-yellow" />} />;
+    return <LoadingScreen title={loadingMessage} />;
   }
 
   // Error state
@@ -309,13 +271,17 @@ export default function SentenceBoxModeContent() {
           <p className="text-body-sm sm:text-body-lg text-text-secondary mb-4">❌ {error}</p>
           <div className="flex gap-2 sm:gap-3 justify-center flex-col sm:flex-row">
             <button
-              onClick={handleRetry}
+              onClick={() =>
+                router.push(
+                  `/game-modes/sentence-ordering?category=${encodeURIComponent(category || '')}&subcategory=${subcategory}`
+                )
+              }
               className="px-4 sm:px-6 py-2 sm:py-3 bg-primary-yellow text-black rounded-lg font-semibold hover:scale-105 transition-transform cursor-pointer text-body-sm sm:text-body-lg"
             >
               Try Again
             </button>
             <button
-              onClick={handleBackToDashboard}
+              onClick={() => router.push('/dashboard')}
               className="px-4 sm:px-6 py-2 sm:py-3 bg-secondary-purple text-white rounded-lg font-semibold hover:scale-105 transition-transform cursor-pointer text-body-sm sm:text-body-lg"
             >
               Dashboard
@@ -326,60 +292,107 @@ export default function SentenceBoxModeContent() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Theme Toggle */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <ThemeToggle />
-      </div>
+  // Result modal
+  if (showResultModal) {
+    const correctCount = gameResults.filter((r) => r.correct).length;
+    const accuracy = ((correctCount / gameResults.length) * 100).toFixed(0);
 
-      {/* Header */}
-      <div className="border-b border-text-secondary/10">
-        <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
-          <div className="flex items-center justify-between mb-2 sm:mb-3 gap-2">
-            <div className="flex-1">
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className={`fixed inset-0 flex items-center justify-center p-4 z-50 ${
+          theme === 'dark' ? 'bg-[#0a0b0e]' : 'bg-white'
+        }`}
+        onClick={() => router.push('/dashboard')}
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.1 }}
+          onClick={(e) => e.stopPropagation()}
+          className={`border-2 border-primary-yellow rounded-3xl p-4 md:p-8 max-w-sm sm:max-w-md md:max-w-lg w-full shadow-2xl ${
+            theme === 'dark' ? 'bg-card-darker' : 'bg-white'
+          }`}
+        >
+          <div className="text-center space-y-6">
+            {/* Title */}
+            <div className="space-y-2">
+              <h2 className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+                Session Complete!
+              </h2>
+              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                Great job on finishing {gameResults.length} questions
+              </p>
+            </div>
+
+            {/* Accuracy Card */}
+            <div className="bg-primary-yellow rounded-2xl p-6">
+              <p className="text-black/70 text-sm font-semibold">Accuracy</p>
+              <p className="text-5xl font-bold text-black">{accuracy}%</p>
+              <p className="text-black/60 text-sm mt-2">
+                {correctCount} of {gameResults.length} correct
+              </p>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex flex-col gap-3 pt-2">
               <button
-                onClick={() => {
-                  if (category) {
-                    router.back();
-                  } else {
-                    router.push('/dashboard');
-                  }
-                }}
-                className="flex items-center gap-2 text-text-secondary hover:text-primary-yellow transition-colors cursor-pointer text-body-lg"
+                onClick={() =>
+                  router.push(
+                    `/game-modes/sentence-ordering?category=${encodeURIComponent(category || '')}&subcategory=${subcategory}`
+                  )
+                }
+                className="w-full px-6 py-4 bg-primary-yellow text-black rounded-xl font-bold text-lg hover:bg-primary-yellow-hover transition-colors shadow-lg cursor-pointer"
               >
-                <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5" />
-                <span>Back</span>
+                Play Again
+              </button>
+              <button
+                onClick={() => router.back()}
+                className={`w-full px-6 py-4 rounded-xl font-bold text-lg border-2 transition-colors hover:border-primary-yellow cursor-pointer ${
+                  theme === 'dark'
+                    ? 'bg-card border-gray-700 text-white'
+                    : 'bg-gray-100 border-gray-300 text-black'
+                }`}
+              >
+                Back to Category
+              </button>
+              <button
+                onClick={() => router.push('/dashboard')}
+                className={`w-full px-6 py-4 rounded-xl font-bold text-lg border-2 transition-colors hover:border-primary-yellow cursor-pointer ${
+                  theme === 'dark'
+                    ? 'bg-card border-gray-700 text-white'
+                    : 'bg-gray-100 border-gray-300 text-black'
+                }`}
+              >
+                Dashboard
               </button>
             </div>
-
-            {/* Progress - Center */}
-            <div className="flex-1 text-center text-text-secondary text-label">
-              Question <span className="text-primary-yellow font-bold">{currentIndex + 1}</span> /{' '}
-              {sentences.length}
-            </div>
-
-            {/* Mode Badge - Right */}
-            <div className="flex-1 flex items-center justify-end">
-              <span className="text-xs sm:text-sm px-3 py-1 bg-secondary-purple text-white rounded-full font-semibold">
-                Sentence Box
-              </span>
-            </div>
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
+    );
+  }
 
-      {/* Progress Bar */}
-      <div className="max-w-4xl mx-auto px-3 sm:px-4 mt-3 sm:mt-4">
-        <div className="h-2 bg-surface rounded-full overflow-hidden">
-          <motion.div
-            className="h-full bg-primary-yellow"
-            initial={{ width: 0 }}
-            animate={{ width: `${((currentIndex + 1) / sentences.length) * 100}%` }}
-            transition={{ duration: 0.3 }}
-          />
-        </div>
-      </div>
+  // Game UI
+  return (
+    <div className="min-h-screen bg-background">
+      <GameNavbar
+        currentIndex={currentIndex}
+        totalQuestions={sentences.length}
+        category={category || ''}
+        subcategory={subcategory || ''}
+        modeName="Sentence Box"
+        onBack={() => {
+          if (category) {
+            router.back();
+          } else {
+            router.push('/dashboard');
+          }
+        }}
+      />
+
+      <ProgressBar current={currentIndex} total={sentences.length} />
 
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-3 sm:px-4 py-6 sm:py-12">
@@ -392,6 +405,27 @@ export default function SentenceBoxModeContent() {
             transition={{ duration: 0.3 }}
             className="space-y-8"
           >
+            {/* Badges */}
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 flex-wrap mb-3">
+                {currentSentence.class && (
+                  <span className="inline-block px-3 py-1 bg-primary-yellow text-black text-xs font-semibold rounded-full">
+                    {currentSentence.class}
+                  </span>
+                )}
+                {currentSentence.category && (
+                  <span className="inline-block px-3 py-1 bg-secondary-purple text-white text-xs rounded-full">
+                    {currentSentence.category}
+                  </span>
+                )}
+                {currentSentence.subcategory && (
+                  <span className="inline-block px-3 py-1 bg-blue-500/80 text-white text-xs rounded-full">
+                    {currentSentence.subcategory}
+                  </span>
+                )}
+              </div>
+            </div>
+
             {/* Indonesian Sentence with Badge */}
             <div className="text-center">
               <p className="text-text-secondary text-label mb-3">Translate this sentence to English:</p>
@@ -479,9 +513,7 @@ export default function SentenceBoxModeContent() {
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.8 }}
-                  className={`text-center py-6 ${
-                    feedback === 'correct' ? 'text-green-400' : 'text-red-400'
-                  }`}
+                  className={`text-center py-6 ${feedback === 'correct' ? 'text-green-400' : 'text-red-400'}`}
                 >
                   <div className="flex items-center justify-center gap-3 text-2xl font-bold">
                     {feedback === 'correct' ? (
@@ -534,144 +566,6 @@ export default function SentenceBoxModeContent() {
           </motion.div>
         </motion.div>
       )}
-
-      {/* Result Modal */}
-      {showResultModal && (
-        <ResultModal
-          results={gameResults}
-          onRetry={handleRetry}
-          onBackToCategory={handleBackToCategory}
-          onBackToDashboard={handleBackToDashboard}
-        />
-      )}
     </div>
-  );
-}
-
-// Result Modal Component
-function ResultModal({
-  results,
-  onRetry,
-  onBackToCategory,
-  onBackToDashboard,
-}: {
-  results: GameResult[];
-  onRetry: () => void;
-  onBackToCategory: () => void;
-  onBackToDashboard: () => void;
-}) {
-  const { theme } = useTheme();
-  const correctCount = results.filter((r) => r.correct).length;
-  const accuracy = ((correctCount / results.length) * 100).toFixed(0);
-  // Sentence Box Mode doesn't track time, use placeholder values
-  const avgTime = 'N/A';
-  const totalTime = 0;
-  
-  // Format total time to MM:SS
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className={`fixed inset-0 flex items-center justify-center p-4 z-50 ${
-        theme === 'dark' ? 'bg-[#0a0b0e]' : 'bg-white'
-      }`}
-      onClick={onBackToDashboard}
-    >
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ delay: 0.1 }}
-        onClick={(e) => e.stopPropagation()}
-        className={`border-2 border-primary-yellow rounded-3xl p-4 md:p-8 max-w-sm sm:max-w-md md:max-w-lg w-full shadow-2xl ${
-          theme === 'dark' ? 'bg-card-darker' : 'bg-white'
-        }`}
-      >
-        <div className="text-center space-y-6">
-          {/* Title */}
-          <div className="space-y-2">
-            <h2 className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-              Session Complete!
-            </h2>
-            <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-              Great job on finishing {results.length} questions
-            </p>
-          </div>
-
-          {/* Accuracy Card */}
-          <div className="bg-primary-yellow rounded-2xl p-6">
-            <p className="text-black/70 text-sm font-semibold">Accuracy</p>
-            <p className="text-5xl font-bold text-black">{accuracy}%</p>
-            <p className="text-black/60 text-sm mt-2">
-              {correctCount} of {results.length} correct
-            </p>
-          </div>
-
-          {/* Time Cards Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className={`rounded-xl p-4 ${
-              theme === 'dark' 
-                ? 'bg-[#2a2b2e] border border-gray-700' 
-                : 'bg-gray-50 border border-gray-200'
-            }`}>
-              <p className={`text-xs mb-1 font-semibold ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                Total Time
-              </p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                {formatTime(totalTime)}
-              </p>
-            </div>
-
-            <div className={`rounded-xl p-4 ${
-              theme === 'dark' 
-                ? 'bg-[#2a2b2e] border border-gray-700' 
-                : 'bg-gray-50 border border-gray-200'
-            }`}>
-              <p className={`text-xs mb-1 font-semibold ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                Avg Time
-              </p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                {avgTime}s
-              </p>
-            </div>
-          </div>
-
-          {/* Buttons */}
-          <div className="flex flex-col gap-3 pt-2">
-            <button
-              onClick={onRetry}
-              className="w-full px-6 py-4 bg-primary-yellow text-black rounded-xl font-bold text-lg hover:bg-primary-yellow-hover transition-colors shadow-lg cursor-pointer"
-            >
-              Play Again
-            </button>
-            <button
-              onClick={onBackToCategory}
-              className={`w-full px-6 py-4 rounded-xl font-bold text-lg border-2 transition-colors hover:border-primary-yellow cursor-pointer ${
-                theme === 'dark'
-                  ? 'bg-card border-gray-700 text-white'
-                  : 'bg-gray-100 border-gray-300 text-black'
-              }`}
-            >
-              Back to Category
-            </button>
-            <button
-              onClick={onBackToDashboard}
-              className={`w-full px-6 py-4 rounded-xl font-bold text-lg border-2 transition-colors hover:border-primary-yellow cursor-pointer ${
-                theme === 'dark'
-                  ? 'bg-card border-gray-700 text-white'
-                  : 'bg-gray-100 border-gray-300 text-black'
-              }`}
-            >
-              Dashboard
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </motion.div>
   );
 }

@@ -21,14 +21,14 @@ export const metadata: Metadata = {
   keywords: "English vocabulary, learn English, vocabulary learning app, spaced repetition, language learning, English learning game",
   authors: [{ name: "RyuLearn" }],
   creator: "RyuLearn",
-  metadataBase: new URL("https://ryurex-edu.vercel.app"),
+  metadataBase: new URL("https://ryulearn.vercel.app"),
   alternates: {
-    canonical: "https://ryurex-edu.vercel.app",
+    canonical: "https://ryulearn.vercel.app",
   },
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://ryurex-edu.vercel.app",
+    url: "https://ryulearn.vercel.app",
     siteName: "RyuLearn",
     title: "RyuLearn - Master English Vocabulary The Smart Way",
     description: "Learn English vocabulary through gamification, spaced repetition, and adaptive learning. Join thousands of learners!",

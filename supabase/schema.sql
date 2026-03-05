@@ -43,6 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_vocab_class ON public.vocab_master(class);
 CREATE TABLE IF NOT EXISTS public.categories (
   id SERIAL PRIMARY KEY,
   name TEXT UNIQUE NOT NULL, -- e.g. 'Daily Life', 'Family', 'Kitchen'
+  image_url TEXT,            -- URL for category image (optional, replaces local SVG)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -61,6 +62,23 @@ CREATE TABLE IF NOT EXISTS public.vocab_category_mapping (
 CREATE INDEX IF NOT EXISTS idx_mapping_category ON public.vocab_category_mapping(category_id);
 CREATE INDEX IF NOT EXISTS idx_mapping_subcategory ON public.vocab_category_mapping(subcategory_name);
 CREATE INDEX IF NOT EXISTS idx_mapping_vocab ON public.vocab_category_mapping(vocab_id);
+
+-- ============================================
+-- Table 2d: sentence_blanks (Fill the Word mode)
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.sentence_blanks (
+  id SERIAL PRIMARY KEY,
+  vocab_id INTEGER NOT NULL REFERENCES public.vocab_master(id) ON DELETE CASCADE,
+  sentence_indo TEXT NOT NULL,        -- Full Indonesian sentence
+  sentence_english TEXT NOT NULL,     -- Full English sentence (with blank_answer intact)
+  blank_answer TEXT NOT NULL,         -- Exact word to blank out (may be conjugated, e.g., "runs")
+  explanation TEXT,                   -- Grammar explanation for why the answer is correct
+  source TEXT DEFAULT 'ai',           -- 'ai' or 'manual'
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(vocab_id, sentence_indo)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sentence_blanks_vocab_id ON public.sentence_blanks(vocab_id);
 
 -- ============================================
 -- Table 3: user_vocab_progress
@@ -127,6 +145,17 @@ CREATE POLICY "Authenticated users can view vocab_category_mapping"
   ON public.vocab_category_mapping FOR SELECT
   TO authenticated
   USING (true);
+
+-- Sentence blanks: read + insert for authenticated users
+ALTER TABLE public.sentence_blanks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Authenticated users can view sentence_blanks"
+  ON public.sentence_blanks FOR SELECT
+  TO authenticated
+  USING (true);
+CREATE POLICY "Authenticated users can insert sentence_blanks"
+  ON public.sentence_blanks FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
 
 -- User vocab progress policies
 CREATE POLICY "Users can view own progress"

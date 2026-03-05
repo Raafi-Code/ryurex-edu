@@ -3,11 +3,20 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, CheckCircle2, XCircle, Lightbulb, ArrowLeft, RotateCcw, ChevronRight, Home } from 'lucide-react';
+import { CheckCircle2, XCircle, Lightbulb } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import ThemeToggle from '@/components/ThemeToggle';
 import LoadingScreen from '@/components/LoadingScreen';
-import { useTheme } from '@/context/ThemeContext';
+import {
+  useAuthCheck,
+  GameNavbar,
+  ProgressBar,
+  GameResultModal,
+  calculateAccuracy,
+  calculateAvgTime,
+  calculateXPGained,
+  isAnswerCorrect,
+  formatTime,
+} from '../shared';
 
 interface VocabWord {
   vocab_id: number;
@@ -26,7 +35,7 @@ interface GameResult {
   time_taken: number;
 }
 
-export default function VocabGameContent() {
+export default function VocabTranslationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const category = searchParams.get('category');
@@ -47,19 +56,10 @@ export default function VocabGameContent() {
   const [isSubmittingResults, setIsSubmittingResults] = useState(false);
   const [hasNextPart, setHasNextPart] = useState(false);
 
-  // Check authentication on mount
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/');
-      }
-    };
+  // Check authentication
+  useAuthCheck(supabase);
 
-    checkAuth();
-  }, [router, supabase]);
-
-  // Reset all game state when category or subcategory changes
+  // Reset state when category/subcategory changes
   useEffect(() => {
     setWords([]);
     setCurrentIndex(0);
@@ -76,7 +76,7 @@ export default function VocabGameContent() {
 
   // Timer interval
   useEffect(() => {
-    if (isLoading || feedback || showResultModal) return; // Pause timer during loading, feedback or result
+    if (isLoading || feedback || showResultModal) return;
 
     const interval = setInterval(() => {
       setTimer((prev) => prev + 1);
@@ -89,11 +89,9 @@ export default function VocabGameContent() {
   useEffect(() => {
     if (timer >= 10 && !feedback) {
       setShowHint(true);
-      // Auto-fill revealed letters when hint appears
       const currentWord = words[currentIndex];
       if (currentWord) {
         const revealedLetters = Math.floor(timer / 10);
-        // Build the correct answer with revealed letters
         let filledAnswer = '';
         for (let i = 0; i < currentWord.english_primary.length; i++) {
           if (i < revealedLetters) {
@@ -101,10 +99,9 @@ export default function VocabGameContent() {
           } else if (userAnswer[i]) {
             filledAnswer += userAnswer[i];
           } else {
-            break; // Stop if we hit an empty position
+            break;
           }
         }
-        // Only update if we have revealed letters
         if (revealedLetters > 0) {
           setUserAnswer(filledAnswer);
         }
@@ -112,45 +109,38 @@ export default function VocabGameContent() {
     }
   }, [timer, feedback, words, currentIndex, userAnswer]);
 
-  // Fetch words on mount - REQUIRED category and subcategory
+  // Fetch words
   useEffect(() => {
     if (!category || !subcategory) {
       alert('Category and Subcategory are required!');
       router.push('/dashboard');
       return;
     }
-    
+
     let isMounted = true;
-    
+
     const loadWords = async () => {
       try {
-        // Use custom batch endpoint - directly fetch words without "due today" filter
         const params = new URLSearchParams();
         params.append('category', category);
         params.append('subcategory', subcategory);
-        
+
         const url = `/api/getCustomBatch?${params.toString()}`;
-        
+
         const response = await fetch(url);
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.error || 'Failed to fetch words');
         }
-        
+
         const data = await response.json();
 
-        
-        // API returns { success, words, count, total_available }
         if (data.words && Array.isArray(data.words)) {
-          if (data.words.length === 0) {
-            if (isMounted) setWords([]);
-          } else {
-            if (isMounted) setWords(data.words);
-          }
+          if (isMounted) setWords(data.words.length === 0 ? [] : data.words);
         } else {
           throw new Error('Invalid data format from API');
         }
-        
+
         if (isMounted) setIsLoading(false);
       } catch (error) {
         console.error('❌ Error fetching words:', error);
@@ -160,9 +150,9 @@ export default function VocabGameContent() {
         }
       }
     };
-    
+
     loadWords();
-    
+
     return () => {
       isMounted = false;
     };
@@ -174,33 +164,26 @@ export default function VocabGameContent() {
         throw new Error('Category and subcategory are required');
       }
 
-      // Use custom batch endpoint - directly fetch words without "due today" filter
       const params = new URLSearchParams();
       params.append('category', category);
       params.append('subcategory', subcategory);
-      
+
       const url = `/api/getCustomBatch?${params.toString()}`;
-      
+
       const response = await fetch(url);
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to fetch words');
       }
-      
+
       const data = await response.json();
 
-      
-      // API returns { success, words, count, total_available }
       if (data.words && Array.isArray(data.words)) {
-        if (data.words.length === 0) {
-          setWords([]);
-        } else {
-          setWords(data.words);
-        }
+        setWords(data.words.length === 0 ? [] : data.words);
       } else {
         throw new Error('Invalid data format from API');
       }
-      
+
       setIsLoading(false);
     } catch (error) {
       console.error('❌ Error fetching words:', error);
@@ -214,14 +197,14 @@ export default function VocabGameContent() {
 
     setIsSubmitting(true);
     const currentWord = words[currentIndex];
-    const isCorrect = 
-      userAnswer.trim().toLowerCase() === currentWord.english_primary.toLowerCase() ||
-      (currentWord.synonyms || []).some(s => s.toLowerCase() === userAnswer.trim().toLowerCase());
+    const isCorrect = isAnswerCorrect(
+      userAnswer,
+      currentWord.english_primary,
+      currentWord.synonyms
+    );
 
-    // Show feedback
     setFeedback(isCorrect ? 'correct' : 'wrong');
 
-    // Record result LOCALLY (no API call yet)
     const result: GameResult = {
       vocab_id: currentWord.vocab_id,
       correct: isCorrect,
@@ -229,14 +212,11 @@ export default function VocabGameContent() {
     };
     setGameResults((prev) => [...prev, result]);
 
-    // Auto-next after 2 seconds
     setTimeout(() => {
       if (currentIndex < words.length - 1) {
-        // Move to next question
         setCurrentIndex((prev) => prev + 1);
         resetQuestion();
       } else {
-        // Game completed - submit all results in batch
         submitAllResults([...gameResults, result]);
       }
     }, 2000);
@@ -255,29 +235,24 @@ export default function VocabGameContent() {
         throw new Error('Failed to submit results');
       }
 
-      const data = await response.json();
-      
-      // Check if next part exists before showing modal
+      // Check if next part exists
       try {
         const nextSubcategory = parseInt(String(subcategory)) + 1;
         const checkResponse = await fetch(`/api/subcategories?category=${encodeURIComponent(category || '')}`);
-        
+
         if (checkResponse.ok) {
           const checkData = await checkResponse.json();
-          // Check if there's a next subcategory/topic
           const currentSubcatIndex = checkData.subcategories?.findIndex(
             (sub: { subcategory_name: string }) => sub.subcategory_name === subcategory
           );
-          const nextPartExists = currentSubcatIndex !== -1 && 
-            currentSubcatIndex < (checkData.subcategories?.length || 0) - 1;
+          const nextPartExists = currentSubcatIndex !== -1 && currentSubcatIndex < (checkData.subcategories?.length || 0) - 1;
           setHasNextPart(!!nextPartExists);
         }
       } catch (error) {
         console.error('Error checking next part:', error);
         setHasNextPart(false);
       }
-      
-      // Show result modal after checking is complete
+
       setShowResultModal(true);
     } catch (error) {
       console.error('❌ Error submitting batch results:', error);
@@ -298,60 +273,48 @@ export default function VocabGameContent() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let newValue = e.target.value;
     const currentWord = words[currentIndex];
-    
+
     if (!currentWord) return;
-    
+
     const correctAnswer = currentWord.english_primary;
     const revealedLetters = showHint ? Math.floor(timer / 10) : 0;
-    
-    // Remove all spaces from input (spaces are auto-added by system)
-    // This works for both physical keyboard and virtual keyboard on mobile
+
     const prevValue = userAnswer;
     const hasNewSpace = newValue.includes(' ') && !prevValue.includes(' ');
-    
+
     if (hasNewSpace) {
-      // Space was added - remove it and check if it should auto-add based on correct answer
       newValue = newValue.replace(/\s+/g, '');
-      
-      // If the position where space was added should have a space in correct answer, add it back
+
       if (newValue.length < correctAnswer.length && correctAnswer[newValue.length] === ' ') {
         newValue = newValue + ' ';
       }
     }
-    
-    // If hint is shown, prevent changing revealed letters
+
     if (showHint && revealedLetters > 0) {
-      // Check if user tried to modify any revealed letters
       for (let i = 0; i < revealedLetters; i++) {
         if (correctAnswer[i] !== ' ' && newValue[i] !== correctAnswer[i]) {
-          // Restore the revealed letter
           const corrected = correctAnswer.slice(0, revealedLetters) + newValue.slice(revealedLetters);
           setUserAnswer(corrected.slice(0, correctAnswer.length));
           return;
         }
       }
     }
-    
-    // Auto-skip spaces: if next character in correct answer is space, add it automatically
-    // BUT: Only do this when user is TYPING forward (length increasing), not when deleting
+
     if (!hasNewSpace && newValue.length < correctAnswer.length && correctAnswer[newValue.length] === ' ' && userAnswer.length < newValue.length) {
       newValue = newValue + ' ';
     }
-    
-    // Limit input to the length of the correct answer
+
     if (newValue.length <= correctAnswer.length) {
       setUserAnswer(newValue);
     }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    // Prevent spacebar input (spaces are auto-added by system)
     if (e.key === ' ') {
       e.preventDefault();
       return;
     }
-    
-    // Only allow Enter if answer is complete (same condition as Submit button)
+
     if (e.key === 'Enter' && !isSubmitting && !feedback) {
       const currentWord = words[currentIndex];
       if (userAnswer.trim() && userAnswer.length >= 1) {
@@ -360,23 +323,18 @@ export default function VocabGameContent() {
     }
   };
 
-  // Generate underscore display with hint
   const renderUnderscoreDisplay = () => {
     if (!words[currentIndex]) return null;
-    
+
     const correctAnswer = words[currentIndex].english_primary;
     const letters = correctAnswer.split('');
-    
-    // Calculate how many letters to reveal based on timer (every 10 seconds)
     const revealedLetters = showHint ? Math.floor(timer / 10) : 0;
 
     return letters.map((letter, idx) => {
-      // Preserve spaces between words
       if (letter === ' ') {
         return <span key={idx} className="inline-block w-4"></span>;
       }
-      
-      // Show CORRECT letters in yellow for revealed positions (always show correct answer for hints)
+
       if (revealedLetters > idx && showHint) {
         return (
           <span key={idx} className="text-primary-yellow font-bold mx-0.5">
@@ -384,8 +342,7 @@ export default function VocabGameContent() {
           </span>
         );
       }
-      
-      // Show user's typed input (for non-revealed positions)
+
       if (userAnswer[idx] && !(revealedLetters > idx && showHint)) {
         return (
           <span key={idx} className="text-text-primary mx-0.5">
@@ -393,8 +350,7 @@ export default function VocabGameContent() {
           </span>
         );
       }
-      
-      // Show underscore for empty positions
+
       return (
         <span key={idx} className="text-text-secondary mx-0.5">
           _
@@ -431,60 +387,16 @@ export default function VocabGameContent() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Theme Toggle - Fixed Position Bottom Right */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <ThemeToggle />
-      </div>
+      <GameNavbar
+        currentIndex={currentIndex}
+        totalQuestions={words.length}
+        timer={timer}
+        category={category || ''}
+        subcategory={subcategory || ''}
+        onBack={() => router.push(`/category-menu/${category}`)}
+      />
 
-      {/* Header */}
-      <div className="border-b border-text-secondary/10">
-        <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
-          <div className="flex items-center justify-between mb-2 sm:mb-3 gap-2">
-            <div className="flex-1">
-              <button
-                onClick={() => router.push(`/category-menu/${category}`)}
-                className="flex items-center gap-2 text-text-secondary hover:text-primary-yellow transition-colors cursor-pointer text-body-lg"
-              >
-                <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5" />
-                <span>Back</span>
-              </button>
-            </div>
-
-            {/* Progress - Center */}
-            <div className="flex-1 text-center text-text-secondary text-label">
-              Question <span className="text-primary-yellow font-bold">{currentIndex + 1}</span> / {words.length}
-            </div>
-
-            {/* Timer - Right */}
-            <div className="flex-1 flex items-center justify-end gap-1 sm:gap-2 text-text-secondary text-label">
-              <Clock className="w-4 sm:w-5 h-4 sm:h-5" />
-              <span className="font-mono">{timer}s</span>
-            </div>
-          </div>
-
-          {/* Category & Subcategory Badges */}
-          <div className="flex items-center justify-center gap-2 flex-wrap">
-            <span className="inline-block px-2 sm:px-4 py-1 bg-secondary-purple text-white text-label font-semibold rounded-full capitalize">
-              {category}
-            </span>
-            <span className="inline-block px-2 sm:px-4 py-1 bg-primary-yellow text-black text-label font-semibold rounded-full">
-              {subcategory}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Progress Bar */}
-      <div className="max-w-4xl mx-auto px-3 sm:px-4 mt-3 sm:mt-4">
-        <div className="h-2 bg-surface rounded-full overflow-hidden">
-          <motion.div
-            className="h-full bg-primary-yellow"
-            initial={{ width: 0 }}
-            animate={{ width: `${((currentIndex + 1) / words.length) * 100}%` }}
-            transition={{ duration: 0.3 }}
-          />
-        </div>
-      </div>
+      <ProgressBar current={currentIndex} total={words.length} />
 
       {/* Main Game Area */}
       <div className="max-w-4xl mx-auto px-3 sm:px-4 py-6 sm:py-12">
@@ -501,22 +413,28 @@ export default function VocabGameContent() {
             <div className="text-center">
               <p className="text-text-secondary text-label mb-2">Translate this word to English:</p>
               <h1 className="text-heading-1 text-text-primary mb-2">{currentWord.indo}</h1>
-              <div className="flex items-center justify-center gap-2">
+              <div className="flex items-center justify-center gap-2 flex-wrap">
                 {currentWord.class && (
                   <span className="inline-block px-3 py-1 bg-primary-yellow text-black text-xs font-semibold rounded-full">
                     {currentWord.class}
                   </span>
                 )}
-                <span className="inline-block px-3 py-1 bg-secondary-purple text-white text-xs rounded-full">
-                  {currentWord.category}
-                </span>
+                {currentWord.category && (
+                  <span className="inline-block px-3 py-1 bg-secondary-purple text-white text-xs rounded-full">
+                    {currentWord.category}
+                  </span>
+                )}
+                {currentWord.subcategory && (
+                  <span className="inline-block px-3 py-1 bg-blue-500/80 text-white text-xs rounded-full">
+                    {currentWord.subcategory}
+                  </span>
+                )}
               </div>
             </div>
 
             {/* Interactive Underscore Input */}
             <div className="text-center">
               <div className="relative inline-block">
-                {/* Hidden input for capturing keystrokes */}
                 <input
                   type="text"
                   value={userAnswer}
@@ -528,9 +446,8 @@ export default function VocabGameContent() {
                   autoFocus
                   style={{ caretColor: 'transparent' }}
                 />
-                
-                {/* Visual underscore display */}
-                <div 
+
+                <div
                   className="bg-surface px-4 sm:px-8 py-4 sm:py-6 rounded-xl border-2 border-text-secondary/20 hover:border-primary-yellow/50 transition-colors cursor-text"
                   onClick={() => {
                     const input = document.querySelector('input[type="text"]') as HTMLInputElement;
@@ -560,11 +477,7 @@ export default function VocabGameContent() {
             <div className="text-center">
               <button
                 onClick={handleSubmit}
-                disabled={
-                  !userAnswer.trim() || 
-                  isSubmitting || 
-                  !!feedback
-                }
+                disabled={!userAnswer.trim() || isSubmitting || !!feedback}
                 className="w-32 sm:w-40 py-3 sm:py-4 bg-primary-yellow text-black rounded-xl font-bold text-base sm:text-lg hover:bg-primary-yellow-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
               >
                 {isSubmitting ? 'Checking...' : 'Submit'}
@@ -578,9 +491,7 @@ export default function VocabGameContent() {
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.8 }}
-                  className={`text-center py-6 ${
-                    feedback === 'correct' ? 'text-green-400' : 'text-red-400'
-                  }`}
+                  className={`text-center py-6 ${feedback === 'correct' ? 'text-green-400' : 'text-red-400'}`}
                 >
                   <div className="flex items-center justify-center gap-3 text-2xl font-bold">
                     {feedback === 'correct' ? (
@@ -615,7 +526,6 @@ export default function VocabGameContent() {
             transition={{ duration: 0.5 }}
             className="flex flex-col items-center gap-4"
           >
-            {/* Loading Text with Pulse */}
             <div className="text-center space-y-4">
               <motion.p
                 animate={{ opacity: [0.5, 1, 0.5] }}
@@ -625,7 +535,6 @@ export default function VocabGameContent() {
                 Submitting Your Results...
               </motion.p>
 
-              {/* Dots Animation */}
               <div className="flex justify-center gap-2">
                 {[0, 1, 2].map((i) => (
                   <motion.div
@@ -647,11 +556,16 @@ export default function VocabGameContent() {
 
       {/* Result Modal */}
       {showResultModal && (
-        <ResultModal
-          results={gameResults}
-          subcategory={subcategory || ''}
-          hasNextPart={hasNextPart}
-          onClose={() => router.push(`/category-menu/${category}`)}
+        <GameResultModal
+          correctCount={gameResults.filter((r) => r.correct).length}
+          totalCount={gameResults.length}
+          accuracy={calculateAccuracy(gameResults.length, gameResults.filter((r) => r.correct).length)}
+          avgTime={calculateAvgTime(
+            gameResults.reduce((sum, r) => sum + r.time_taken, 0),
+            gameResults.length
+          )}
+          totalTime={Math.floor(gameResults.reduce((sum, r) => sum + r.time_taken, 0))}
+          xpGained={calculateXPGained(gameResults)}
           onPlayAgain={() => {
             setShowResultModal(false);
             setIsLoading(true);
@@ -661,216 +575,19 @@ export default function VocabGameContent() {
             resetQuestion();
             fetchWords();
           }}
-          onNextPart={(nextSubcategoryName) => {
+          onBackToMenu={() => router.push(`/category-menu/${category}`)}
+          onNextPart={() => {
             setShowResultModal(false);
             setIsLoading(true);
-            // Use window.location for full page reload  
-            const url = `/vocabgame?category=${encodeURIComponent(category || '')}&subcategory=${encodeURIComponent(nextSubcategoryName)}`;
+            const nextSubcategoryIndex = parseInt(String(subcategory)) + 1;
+            const url = `/game-modes/vocab-translation?category=${encodeURIComponent(category || '')}&subcategory=${nextSubcategoryIndex}`;
             window.location.href = url;
           }}
+          hasNextPart={hasNextPart}
+          showPlayAgain={true}
+          showNextPart={true}
         />
       )}
     </div>
-  );
-}
-
-// Result Modal Component
-function ResultModal({
-  results,
-  subcategory,
-  hasNextPart,
-  onClose,
-  onPlayAgain,
-  onNextPart,
-}: {
-  results: GameResult[];
-  subcategory: string | number;
-  hasNextPart: boolean;
-  onClose: () => void;
-  onPlayAgain: () => void;
-  onNextPart: (nextSubcategoryName: string) => void;
-}) {
-  const { theme } = useTheme();
-  // We need to fetch subcategory list to find the next topic
-  const [nextSubcategoryName, setNextSubcategoryName] = useState<string | null>(null);
-
-  useEffect(() => {
-    const findNextSubcategory = async () => {
-      try {
-        // Determine the category from the URL
-        const params = new URLSearchParams(window.location.search);
-        const cat = params.get('category');
-        if (!cat) return;
-
-        const response = await fetch(`/api/subcategories?category=${encodeURIComponent(cat)}`);
-        if (!response.ok) return;
-
-        const data = await response.json();
-        const subcats = data.subcategories || [];
-        const currentIndex = subcats.findIndex(
-          (s: { subcategory_name: string }) => s.subcategory_name === subcategory
-        );
-        if (currentIndex >= 0 && currentIndex < subcats.length - 1) {
-          setNextSubcategoryName(subcats[currentIndex + 1].subcategory_name);
-        }
-      } catch (error) {
-        console.error('Error finding next subcategory:', error);
-      }
-    };
-
-    if (hasNextPart) {
-      findNextSubcategory();
-    }
-  }, [hasNextPart, subcategory]);
-
-  const correctCount = results.filter((r) => r.correct).length;
-  const accuracy = ((correctCount / results.length) * 100).toFixed(0);
-  const totalTimeSeconds = results.reduce((sum, r) => sum + r.time_taken, 0);
-  const avgTime = (totalTimeSeconds / results.length).toFixed(1);
-  const totalTime = Math.floor(totalTimeSeconds);
-  
-  // Format total time to MM:SS
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-  
-  // Calculate XP gained (with bonus for very fast answers)
-  const xpGained = results.reduce((sum, r) => {
-    if (!r.correct) return sum; // Wrong or reset: 0 XP
-    if (r.time_taken <= 5) return sum + 15; // ⚡ Very fast: 15 XP
-    if (r.time_taken < 10) return sum + 10; // 🔥 Fast: 10 XP
-    return sum; // ⏱️ Slow or reset: 0 XP
-  }, 0);
-
-  const handleNextPart = () => {
-    if (nextSubcategoryName) {
-      onNextPart(nextSubcategoryName);
-    }
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className={`fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/50`}
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ delay: 0.1 }}
-        onClick={(e) => e.stopPropagation()}
-        className={`border-2 border-primary-yellow rounded-2xl md:rounded-3xl p-4 md:p-8 max-w-xs sm:max-w-sm md:max-w-md w-full shadow-2xl ${
-          theme === 'dark' ? 'bg-card-darker' : 'bg-white'
-        }`}
-      >
-        <div className="text-center space-y-3 md:space-y-6">
-          {/* Title */}
-          <div className="space-y-1 md:space-y-2">
-            <h2 className={`text-xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-              Session Complete!
-            </h2>
-            <p className={`text-xs md:text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-              Great job on finishing {results.length} questions
-            </p>
-          </div>
-
-          {/* Stats */}
-          <div className="space-y-3 md:space-y-4">
-            {/* XP Gained - Large Card */}
-            <div className="bg-primary-yellow rounded-xl md:rounded-2xl p-3 md:p-6">
-              <p className="text-black/70 text-xs md:text-sm font-semibold">Total XP Gained</p>
-              <p className="text-3xl md:text-5xl font-bold text-black">+{xpGained}</p>
-            </div>
-
-            {/* Accuracy & Time Grid */}
-            <div className="grid grid-cols-3 gap-2 md:gap-4">
-              <div className={`rounded-lg md:rounded-xl p-2 md:p-4 ${
-                theme === 'dark'
-                  ? 'bg-card-darker border border-gray-700'
-                  : 'bg-gray-50 border border-gray-200'
-              }`}>
-                <p className={`text-xs mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Accuracy
-                </p>
-                <p className={`text-2xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                  {accuracy}%
-                </p>
-                <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>{correctCount}/{results.length} correct</p>
-              </div>
-
-              <div className={`rounded-lg md:rounded-xl p-2 md:p-4 ${
-                theme === 'dark'
-                  ? 'bg-card-darker border border-gray-700'
-                  : 'bg-gray-50 border border-gray-200'
-              }`}>
-                <p className={`text-xs mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Total Time
-                </p>
-                <p className={`text-2xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                  {formatTime(totalTime)}
-                </p>
-                <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>{results.length} questions</p>
-              </div>
-
-              <div className={`rounded-lg md:rounded-xl p-2 md:p-4 ${
-                theme === 'dark'
-                  ? 'bg-card-darker border border-gray-700'
-                  : 'bg-gray-50 border border-gray-200'
-              }`}>
-                <p className={`text-xs mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Avg Time
-                </p>
-                <p className={`text-2xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                  {avgTime}s
-                </p>
-                <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>per question</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Buttons - Icon Only */}
-          <div className="flex items-center justify-center gap-2 md:gap-4 pt-1 md:pt-2">
-            {/* Play Again */}
-            <button
-              onClick={onPlayAgain}
-              title="Play Again"
-              className="p-2 md:p-4 bg-primary-yellow text-black rounded-full hover:bg-primary-yellow-hover hover:scale-110 transition-all shadow-lg cursor-pointer"
-            >
-              <RotateCcw className="w-5 h-5 md:w-6 md:h-6" />
-            </button>
-
-            {/* Next Part */}
-            <button
-              onClick={() => {
-                if (hasNextPart) {
-                  handleNextPart();
-                }
-              }}
-              disabled={!hasNextPart}
-              title={hasNextPart ? "Next Part" : "No more parts available"}
-              className={`p-2 md:p-4 rounded-full border-2 transition-all shadow-lg ${
-                hasNextPart
-                  ? 'cursor-pointer hover:scale-110 bg-card border-primary-yellow text-primary-yellow hover:bg-primary-yellow/10'
-                  : 'cursor-not-allowed opacity-50 bg-card border-gray-600 text-gray-600'
-              }`}
-            >
-              <ChevronRight className="w-5 h-5 md:w-6 md:h-6" />
-            </button>
-
-            {/* Back to Menu */}
-            <button
-              onClick={onClose}
-              title="Back to Menu"
-              className="p-2 md:p-4 rounded-full border-2 border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-300 transition-all hover:scale-110 shadow-lg cursor-pointer bg-card"
-            >
-              <Home className="w-5 h-5 md:w-6 md:h-6" />
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </motion.div>
   );
 }

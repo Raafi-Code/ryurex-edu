@@ -1,25 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://ryurex-edu.vercel.app</loc>
+    <loc>https://ryulearn.vercel.app</loc>
     <lastmod>2025-11-25</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://ryurex-edu.vercel.app/login</loc>
+    <loc>https://ryulearn.vercel.app/login</loc>
     <lastmod>2025-11-25</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://ryurex-edu.vercel.app/signup</loc>
+    <loc>https://ryulearn.vercel.app/signup</loc>
     <lastmod>2025-11-25</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://ryurex-edu.vercel.app/forgot-password</loc>
+    <loc>https://ryulearn.vercel.app/forgot-password</loc>
     <lastmod>2025-11-25</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>

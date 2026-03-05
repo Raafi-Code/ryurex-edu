@@ -141,30 +141,57 @@ export async function GET(request: Request) {
       );
     }
 
-    // Step 3: Create lookup maps for O(1) merge
+    // Step 3: Fetch category & subcategory info from mapping table
+    const { data: mappingWithCategory } = await supabase
+      .from('vocab_category_mapping')
+      .select('vocab_id, subcategory_name, category_id, categories(name)')
+      .in('vocab_id', filteredVocabIds);
+
+    // Build a map: vocab_id -> { category, subcategory }
+    const categoryInfoMap = new Map<number, { category: string; subcategory: string }>();
+    if (mappingWithCategory) {
+      for (const m of mappingWithCategory) {
+        // Only set the first mapping found per vocab_id (a word may appear in multiple categories)
+        if (!categoryInfoMap.has(m.vocab_id)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const catRaw = m.categories as any;
+          const catName = Array.isArray(catRaw) ? (catRaw[0]?.name || '') : (catRaw?.name || '');
+          categoryInfoMap.set(m.vocab_id, {
+            category: catName,
+            subcategory: m.subcategory_name || '',
+          });
+        }
+      }
+    }
+
+    // Step 4: Create lookup maps for O(1) merge
     const vocabMap = new Map(vocabData?.map(v => [v.id, v]) || []);
     const progressMap = new Map(progressWords.map(p => [p.vocab_id, p]) || []);
 
-    // Step 4: Merge data in memory (skip filtered-out vocab)
+    // Step 5: Merge data in memory (skip filtered-out vocab)
     const allWords = vocabIds
       .map(vocabId => {
         const vocab = vocabMap.get(vocabId);
         const progress = progressMap.get(vocabId);
         if (!vocab) return null; // Skip if vocab was filtered out
         
+        const catInfo = categoryInfoMap.get(vocabId);
+
         return {
           vocab_id: vocab.id,
           indo: vocab.indo,
           english_primary: vocab.english_primary,
           synonyms: vocab.synonyms || [],
           class: vocab.class,
+          category: catInfo?.category || '',
+          subcategory: catInfo?.subcategory || '',
           fluency: progress?.fluency || 0,
           next_due: progress?.next_due || today,
         };
       })
       .filter(Boolean);
 
-    // Step 5: Apply limit AFTER all filtering
+    // Step 6: Apply limit AFTER all filtering
     const words = allWords.slice(0, numQuestions);
 
     console.log(`📊 Final batch: ${words.length} words (after filters and limit)`);

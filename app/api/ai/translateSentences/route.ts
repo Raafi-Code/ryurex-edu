@@ -14,7 +14,7 @@ async function translateToEnglish(indonesianText: string): Promise<string> {
       )}&langpair=id|en`,
       {
         headers: {
-          'User-Agent': 'Ryurex-Edu/1.0',
+          'User-Agent': 'RyuLearn/1.0',
         },
       }
     );

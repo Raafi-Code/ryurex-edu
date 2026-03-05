@@ -61,6 +61,7 @@ interface Category {
   count: number;
   learned_count: number;
   icon: string;
+  image_url?: string | null;
 }
 
 export default function DashboardPage() {
@@ -297,7 +298,7 @@ export default function DashboardPage() {
             <h2 className="text-heading-3 mb-4">Quick Access</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
               {/* Review Mode */}
-              <Link href="/review-mode">
+              <Link href="/game-modes/spaced-repetition">
                 <div className="group bg-card border border-border/50 rounded-2xl p-4 md:p-6 hover:border-primary-yellow/60 hover:shadow-[0_0_30px_rgba(254,232,1,0.08)] transition-all duration-300 cursor-pointer h-full">
                   <div className="flex sm:flex-col items-center sm:items-start gap-4 sm:gap-0">
                     <div className="flex-shrink-0 flex items-center justify-center w-12 h-12 md:w-14 md:h-14 bg-primary-yellow rounded-xl sm:mb-4">
@@ -488,7 +489,7 @@ export default function DashboardPage() {
                               {/* Image */}
                               <div className="relative w-full aspect-square bg-gradient-to-br from-primary-yellow/10 to-secondary-purple/10 flex items-center justify-center">
                                 <Image
-                                  src={`/images/categories/${category.name.toLowerCase()}.svg`}
+                                  src={category.image_url || `/images/categories/${category.name.toLowerCase()}.svg`}
                                   alt={category.name}
                                   fill
                                   className="object-cover"

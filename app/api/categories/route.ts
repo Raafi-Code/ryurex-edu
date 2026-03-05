@@ -35,11 +35,24 @@ export async function GET() {
       });
     }
 
+    // Fetch image_url from categories table
+    const { data: categoriesData } = await supabase
+      .from('categories')
+      .select('name, image_url');
+
+    const imageUrlMap: { [key: string]: string | null } = {};
+    if (categoriesData) {
+      categoriesData.forEach((cat: { name: string; image_url: string | null }) => {
+        imageUrlMap[cat.name] = cat.image_url;
+      });
+    }
+
     // Convert RPC result to expected format
     const categoryStatsList = categoryStats.map((stat: any) => ({
       category: stat.category,
       count: stat.total_count || 0,
-      learnedCount: stat.learned_count || 0
+      learnedCount: stat.learned_count || 0,
+      imageUrl: imageUrlMap[stat.category] || null
     }));
 
     console.log(`📚 Total categories: ${categoryStatsList.length}`);
@@ -59,13 +72,14 @@ export async function GET() {
       'Object': '📦',
     };
 
-    const formattedCategories = categoryStatsList.map((stat: { category: string; count: number; learnedCount: number }) => ({
+    const formattedCategories = categoryStatsList.map((stat: { category: string; count: number; learnedCount: number; imageUrl: string | null }) => ({
       name: stat.category,
       count: stat.count,
       learned_count: stat.learnedCount,
       subcategoryCount: 1, // Default, can be enhanced later
       hasSentences: true, // Default, can be enhanced later
       icon: categoryIcons[stat.category] || '📚',
+      image_url: stat.imageUrl,
     }));
 
     console.log(`✅ Categories API: ${formattedCategories.length} categories returned (optimized)`);

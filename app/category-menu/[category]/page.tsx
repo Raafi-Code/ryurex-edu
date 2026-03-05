@@ -92,6 +92,7 @@ export default function CategoryMenuPage() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [partsPerPage, setPartsPerPage] = useState(6); // Default for mobile (3 cols × 2 rows)
+  const [categoryImageUrl, setCategoryImageUrl] = useState<string | null>(null);
   const { theme } = useTheme();
 
   // Check authentication on mount
@@ -154,11 +155,16 @@ export default function CategoryMenuPage() {
           // Fetch vocab_category_mapping for this category to map learned vocab_ids to subcategories
           const { data: catData } = await supabase
             .from('categories')
-            .select('id')
+            .select('id, image_url')
             .eq('name', categoryName)
             .single();
 
           if (catData) {
+            // Set image_url if available
+            if ((catData as any).image_url) {
+              setCategoryImageUrl((catData as any).image_url);
+            }
+
             const { data: mappingData } = await supabase
               .from('vocab_category_mapping')
               .select('vocab_id, subcategory_name')
@@ -304,24 +310,30 @@ export default function CategoryMenuPage() {
 
   const handlePlayVocab = () => {
     if (selectedSubcategory !== null) {
-      router.push(`/vocabgame?category=${encodeURIComponent(categoryName)}&subcategory=${encodeURIComponent(selectedSubcategory)}`);
+      router.push(`/game-modes/vocab-translation?category=${encodeURIComponent(categoryName)}&subcategory=${encodeURIComponent(selectedSubcategory)}`);
     }
   };
 
   const handlePlayCategoryVocab = () => {
     // New feature: Play vocab with category filter (due today words from this category)
-    router.push(`/review-mode?category=${encodeURIComponent(categoryName)}`);
+    router.push(`/game-modes/spaced-repetition?category=${encodeURIComponent(categoryName)}`);
   };
 
   const handlePlayAiMode = () => {
     if (selectedSubcategory !== null) {
-      router.push(`/ai-mode?category=${encodeURIComponent(categoryName)}&subcategory=${encodeURIComponent(selectedSubcategory)}`);
+      router.push(`/game-modes/ai-sentence-completion?category=${encodeURIComponent(categoryName)}&subcategory=${encodeURIComponent(selectedSubcategory)}`);
     }
   };
 
   const handlePlaySentenceGame = () => {
     if (selectedSubcategory !== null) {
-      router.push(`/sentence-box-mode?category=${encodeURIComponent(categoryName)}&subcategory=${encodeURIComponent(selectedSubcategory)}`);
+      router.push(`/game-modes/sentence-ordering?category=${encodeURIComponent(categoryName)}&subcategory=${encodeURIComponent(selectedSubcategory)}`);
+    }
+  };
+
+  const handlePlayFillTheWord = () => {
+    if (selectedSubcategory !== null) {
+      router.push(`/game-modes/fill-the-word?category=${encodeURIComponent(categoryName)}&subcategory=${encodeURIComponent(selectedSubcategory)}`);
     }
   };
 
@@ -537,7 +549,7 @@ export default function CategoryMenuPage() {
                 {/* Image/Icon */}
                 <div className="relative w-full aspect-video bg-gradient-to-br from-primary-yellow-light to-secondary-purple-light flex items-center justify-center overflow-hidden">
                   <Image
-                    src={categoryImages[categoryName.toLowerCase()] || '/images/categories/default.svg'}
+                    src={categoryImageUrl || categoryImages[categoryName.toLowerCase()] || '/images/categories/default.svg'}
                     alt={categoryName}
                     fill
                     className="object-cover"
@@ -593,11 +605,22 @@ export default function CategoryMenuPage() {
                 {selectedSubcategory !== null && (
                   <button
                     onClick={handlePlaySentenceGame}
-                    className="w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer bg-secondary-purple text-white hover:scale-105 hover:shadow-lg"
+                    className="w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer bg-emerald-600 text-white hover:scale-105 hover:shadow-lg"
                   >
                     <Play className="w-4 h-4" />
                     <span>Sentence Click</span>
                     <span className="bg-primary-yellow text-black px-1.5 py-0.5 rounded text-xs">AI</span>
+                  </button>
+                )}
+
+                {/* Fill the Word Game Button */}
+                {selectedSubcategory !== null && (
+                  <button
+                    onClick={handlePlayFillTheWord}
+                    className="w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer bg-orange-500 text-white hover:scale-105 hover:shadow-lg"
+                  >
+                    <Play className="w-4 h-4" />
+                    <span>Fill the Word</span>
                   </button>
                 )}
               </div>

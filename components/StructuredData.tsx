@@ -6,7 +6,7 @@ export default function StructuredData() {
     '@type': 'WebApplication',
     name: 'RyuLearn',
     description: 'Learn English vocabulary through gamification, spaced repetition, and adaptive learning',
-    url: 'https://ryurex-edu.vercel.app',
+    url: 'https://ryulearn.vercel.app',
     applicationCategory: 'EducationalApplication',
     offers: {
       '@type': 'Offer',
@@ -16,7 +16,7 @@ export default function StructuredData() {
     author: {
       '@type': 'Organization',
       name: 'RyuLearn',
-      url: 'https://ryurex-edu.vercel.app',
+      url: 'https://ryulearn.vercel.app',
     },
     aggregateRating: {
       '@type': 'AggregateRating',

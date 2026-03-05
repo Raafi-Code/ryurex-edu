@@ -10,6 +10,6 @@ export default function robots(): MetadataRoute.Robots {
         crawlDelay: 1,
       },
     ],
-    sitemap: 'https://ryurex-edu.vercel.app/sitemap.xml',
+    sitemap: 'https://ryulearn.vercel.app/sitemap.xml',
   };
 }

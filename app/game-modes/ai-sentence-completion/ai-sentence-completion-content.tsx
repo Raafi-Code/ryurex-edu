@@ -3,11 +3,19 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, XCircle, Lightbulb, ArrowLeft, RotateCcw, Home, BookOpen, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
+import { CheckCircle2, XCircle, Lightbulb, RotateCcw, Home, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import ThemeToggle from '@/components/ThemeToggle';
 import LoadingScreen from '@/components/LoadingScreen';
 import { useTheme } from '@/context/ThemeContext';
+import {
+  useAuthCheck,
+  GameNavbar,
+  ProgressBar,
+  calculateAccuracy,
+  calculateAvgTime,
+  calculateXPGained,
+  normalizeString,
+} from '../shared';
 
 interface AiSentenceWord {
   id: number;
@@ -26,16 +34,16 @@ interface GameResult {
   correct: boolean;
   hintClickCount: number;
   userAnswer: string;
-  // Store the full question data to prevent lookup issues
   questionData?: AiSentenceWord;
 }
 
-export default function AiModeContent() {
+export default function AiSentenceCompletionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const category = searchParams.get('category');
   const subcategory = searchParams.get('subcategory');
   const supabase = createClient();
+  const { theme } = useTheme();
 
   // Game state
   const [sentences, setSentences] = useState<AiSentenceWord[]>([]);
@@ -49,23 +57,14 @@ export default function AiModeContent() {
   const [loadingMessage, setLoadingMessage] = useState('Initializing AI Mode...');
   const [showResultModal, setShowResultModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewIndex, setReviewIndex] = useState(0); // Track current review item
+  const [reviewIndex, setReviewIndex] = useState(0);
   const [isSubmittingResults, setIsSubmittingResults] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check authentication on mount
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/');
-      }
-    };
+  // Check authentication
+  useAuthCheck(supabase);
 
-    checkAuth();
-  }, [router, supabase]);
-
-  // Reset all game state when category or subcategory changes
+  // Reset state
   useEffect(() => {
     setSentences([]);
     setCurrentIndex(0);
@@ -82,7 +81,7 @@ export default function AiModeContent() {
     setError(null);
   }, [category, subcategory]);
 
-  // Fetch and generate AI sentences on mount
+  // Fetch AI sentences
   useEffect(() => {
     if (!category || !subcategory) {
       alert('Category and Subcategory are required!');
@@ -94,16 +93,12 @@ export default function AiModeContent() {
 
     const loadAiSentences = async () => {
       try {
-        // Step 1: Generate Indonesian sentences using Groq
         setLoadingMessage('Generating Indonesian sentences with AI...');
 
         const generateResponse = await fetch('/api/ai/generateSentences', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            category,
-            subcategory, // No longer using parseInt as it's a string (topic name)
-          }),
+          body: JSON.stringify({ category, subcategory }),
         });
 
         if (!generateResponse.ok) {
@@ -117,7 +112,6 @@ export default function AiModeContent() {
           throw new Error('No sentences were generated');
         }
 
-        // Sentences now include both Indonesian and English translations from Groq
         if (isMounted) {
           setSentences(generatedData.words);
           setIsLoading(false);
@@ -125,8 +119,7 @@ export default function AiModeContent() {
       } catch (error) {
         console.error('❌ Error loading AI sentences:', error);
         if (isMounted) {
-          const errorMessage =
-            error instanceof Error ? error.message : 'Unknown error';
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           setError(errorMessage);
           setIsLoading(false);
         }
@@ -155,15 +148,12 @@ export default function AiModeContent() {
 
   const getMaxWordLength = (sentence: string) => {
     const words = sentence.split(/\s+/);
-    const maxLength = Math.max(
-      ...words.map((word) => word.replace(/[^a-zA-Z]/g, '').length)
-    );
+    const maxLength = Math.max(...words.map((word) => word.replace(/[^a-zA-Z]/g, '').length));
     return maxLength;
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    setUserAnswer(newValue);
+    setUserAnswer(e.target.value);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -198,10 +188,7 @@ export default function AiModeContent() {
               );
             }
 
-            const userWords = userAnswer
-              .trim()
-              .split(/\s+/)
-              .filter((w) => w.length > 0);
+            const userWords = userAnswer.trim().split(/\s+/).filter((w) => w.length > 0);
             if (userWords[wordIdx] && userWords[wordIdx][letterIdx]) {
               return (
                 <span key={letterIdx} className="text-text-primary">
@@ -222,18 +209,15 @@ export default function AiModeContent() {
     });
   };
 
-  // Helper function to highlight the vocabulary word in the sentence
   const renderSentenceWithBadge = () => {
     const sentence = currentSentence.sentence_indo;
     const vocabWordIndo = currentSentence.indo.toLowerCase();
-    
-    // Split by common separators but keep them
+
     const parts = sentence.split(/(\s+|[.,!?;:'"()-])/);
-    
+
     return parts.map((part, index) => {
       if (!part) return null;
-      
-      // Check if this part matches the vocabulary word in Indonesian (case-insensitive)
+
       if (part.toLowerCase() === vocabWordIndo) {
         return (
           <span key={index} className="inline-block bg-primary-yellow text-black px-2 py-1 rounded font-semibold mx-1">
@@ -241,7 +225,7 @@ export default function AiModeContent() {
           </span>
         );
       }
-      
+
       return <span key={index}>{part}</span>;
     });
   };
@@ -251,15 +235,11 @@ export default function AiModeContent() {
 
     setIsSubmitting(true);
 
-    const userWords = userAnswer
-      .trim()
-      .split(/\s+/)
-      .map((w) => w.toLowerCase().replace(/[.,!?;:'"]/g, ''));
-
+    const userWords = userAnswer.trim().split(/\s+/).map((w) => normalizeString(w));
     const correctWords = currentSentence.sentence_english
       .trim()
       .split(/\s+/)
-      .map((w) => w.toLowerCase().replace(/[.,!?;:'"]/g, ''));
+      .map((w) => normalizeString(w));
 
     const isCorrect =
       userWords.length === correctWords.length &&
@@ -272,7 +252,7 @@ export default function AiModeContent() {
       correct: isCorrect,
       hintClickCount,
       userAnswer: userAnswer.trim(),
-      questionData: currentSentence, // Store full question data
+      questionData: currentSentence,
     };
     setGameResults((prev) => [...prev, result]);
 
@@ -292,19 +272,13 @@ export default function AiModeContent() {
       const response = await fetch('/api/ai/submitScore', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          results,
-          category,
-          subcategory, // Pass as string
-        }),
+        body: JSON.stringify({ results, category, subcategory }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to submit results');
       }
-
-      const data = await response.json();
 
       setShowResultModal(true);
     } catch (error) {
@@ -315,21 +289,9 @@ export default function AiModeContent() {
     }
   };
 
-  const handleRetry = () => {
-    router.push(`/ai-mode?category=${encodeURIComponent(category || '')}&subcategory=${subcategory}`);
-  };
-
-  const handleBackToDashboard = () => {
-    router.push('/dashboard');
-  };
-
-  const handleBackToCategory = () => {
-    router.back();
-  };
-
   // Loading state
   if (isLoading) {
-    return <LoadingScreen title={loadingMessage} icon={<Sparkles className="w-12 h-12 text-primary-yellow" />} />;
+    return <LoadingScreen title={loadingMessage} />;
   }
 
   // Error state
@@ -340,13 +302,13 @@ export default function AiModeContent() {
           <p className="text-body-sm sm:text-body-lg text-text-secondary mb-4">❌ {error}</p>
           <div className="flex gap-2 sm:gap-3 justify-center flex-col sm:flex-row">
             <button
-              onClick={handleRetry}
+              onClick={() => router.push(`/game-modes/ai-sentence-completion?category=${encodeURIComponent(category || '')}&subcategory=${subcategory}`)}
               className="px-4 sm:px-6 py-2 sm:py-3 bg-primary-yellow text-black rounded-lg font-semibold hover:scale-105 transition-transform cursor-pointer text-body-sm sm:text-body-lg"
             >
               Try Again
             </button>
             <button
-              onClick={handleBackToCategory}
+              onClick={() => router.back()}
               className="px-4 sm:px-6 py-2 sm:py-3 bg-text-secondary/20 text-text-primary rounded-lg font-semibold hover:scale-105 transition-transform cursor-pointer text-body-sm sm:text-body-lg"
             >
               Back
@@ -364,7 +326,7 @@ export default function AiModeContent() {
         <div className="text-center max-w-sm">
           <p className="text-body-sm sm:text-body-lg text-text-secondary mb-4">No sentences available</p>
           <button
-            onClick={handleBackToCategory}
+            onClick={() => router.back()}
             className="px-4 sm:px-6 py-2 sm:py-3 bg-primary-yellow text-black rounded-lg font-semibold hover:scale-105 transition-transform cursor-pointer text-body-sm sm:text-body-lg"
           >
             Back to Category
@@ -377,37 +339,7 @@ export default function AiModeContent() {
   // Result modal
   if (showResultModal) {
     const correctCount = gameResults.filter((r) => r.correct).length;
-    const accuracy =
-      gameResults.length > 0
-        ? Math.round((correctCount / gameResults.length) * 100)
-        : 0;
-
-    // AI Mode doesn't track time by default, focus on accuracy and hints instead
-    const avgTime = 'N/A';
-    const totalTime = 0;
-    
-    // Format total time to MM:SS
-    const formatTime = (seconds: number) => {
-      const mins = Math.floor(seconds / 60);
-      const secs = seconds % 60;
-      return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    // Calculate total XP gained (same logic as backend)
-    let totalXpGained = 0;
-    gameResults.forEach((result) => {
-      if (result.correct) {
-        if (result.hintClickCount === 0) {
-          totalXpGained += 10; // Full XP - no hint
-        } else if (result.hintClickCount === 1) {
-          totalXpGained += 5; // 50% XP - 1 hint
-        } else {
-          totalXpGained += 1; // Minimal XP - 2+ hints
-        }
-      }
-      // Wrong answer = 0 XP in AI Mode
-    });
-
+    const accuracy = gameResults.length > 0 ? Math.round((correctCount / gameResults.length) * 100) : 0;
     const wrongAnswers = gameResults.filter((r) => !r.correct);
 
     return (
@@ -426,10 +358,8 @@ export default function AiModeContent() {
                 }}
                 className="flex items-center gap-2 text-text-secondary hover:text-primary-yellow hover:font-semibold transition-colors cursor-pointer flex-shrink-0"
               >
-                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="text-body-sm">{category ? 'Back to Category' : 'Back to Dashboard'}</span>
+                Back
               </button>
-              <ThemeToggle />
             </div>
           </div>
         </div>
@@ -452,20 +382,19 @@ export default function AiModeContent() {
               </div>
               <div className="bg-black/10 dark:bg-white/10 rounded-xl p-3 sm:p-4">
                 <p className="text-label text-text-secondary mb-1">Total Time</p>
-                <p className="text-heading-3 font-bold text-text-primary">{formatTime(totalTime)}</p>
+                <p className="text-heading-3 font-bold text-text-primary">N/A</p>
               </div>
               <div className="bg-black/10 dark:bg-white/10 rounded-xl p-3 sm:p-4">
                 <p className="text-label text-text-secondary mb-1">Avg Time</p>
-                <p className="text-heading-3 font-bold text-text-primary">{avgTime}s</p>
+                <p className="text-heading-3 font-bold text-text-primary">N/A</p>
               </div>
             </div>
 
             {/* Buttons */}
             <div className="flex flex-col gap-2 sm:gap-3">
-              {/* Play Again & Back Row */}
               <div className="flex gap-2 sm:gap-3">
                 <button
-                  onClick={handleRetry}
+                  onClick={() => router.push(`/game-modes/ai-sentence-completion?category=${encodeURIComponent(category || '')}&subcategory=${subcategory}`)}
                   className="flex-1 py-3 sm:py-4 rounded-2xl font-bold text-body-sm sm:text-body-lg text-white bg-secondary-purple hover:opacity-90 transition-opacity cursor-pointer"
                 >
                   <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 inline mr-2" />
@@ -473,15 +402,13 @@ export default function AiModeContent() {
                 </button>
 
                 <button
-                  onClick={handleBackToCategory}
+                  onClick={() => router.back()}
                   className="flex-1 py-3 sm:py-4 rounded-2xl font-bold text-body-sm sm:text-body-lg text-white bg-black border-2 border-primary-yellow hover:opacity-90 transition-opacity cursor-pointer"
                 >
-                  <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 inline mr-2" />
                   Back
                 </button>
               </div>
 
-              {/* Review Button */}
               {wrongAnswers.length > 0 && (
                 <button
                   onClick={() => {
@@ -500,7 +427,7 @@ export default function AiModeContent() {
             </div>
           </motion.div>
 
-          {/* Review Section - Expandable Carousel */}
+          {/* Review Section */}
           <AnimatePresence>
             {showReviewModal && wrongAnswers.length > 0 && (
               <motion.div
@@ -520,7 +447,7 @@ export default function AiModeContent() {
                     </p>
                   </div>
 
-                  {/* Carousel Container */}
+                  {/* Carousel */}
                   <div className="relative">
                     <AnimatePresence mode="wait">
                       <motion.div
@@ -533,16 +460,9 @@ export default function AiModeContent() {
                       >
                         {(() => {
                           const wrongResult = wrongAnswers[reviewIndex];
-                          
-                          // First try to use stored question data, then fallback to lookup
-                          let originalQuestion = wrongResult.questionData;
-                          
-                          if (!originalQuestion) {
-                            originalQuestion = sentences.find((s) => s.id === wrongResult.vocab_id);
-                          }
+                          let originalQuestion = wrongResult.questionData || sentences.find((s) => s.id === wrongResult.vocab_id);
 
                           if (!originalQuestion) {
-                            console.warn(`❌ Question with vocab_id ${wrongResult.vocab_id} not found. Wrong answer: ${wrongResult.userAnswer}`);
                             return (
                               <div className="text-center py-8">
                                 <p className="text-text-secondary">Question data not found</p>
@@ -552,12 +472,10 @@ export default function AiModeContent() {
 
                           return (
                             <div>
-                              {/* Indonesian Sentence */}
                               <p className="text-body-sm sm:text-body-lg text-text-primary font-medium mb-4 leading-relaxed">
                                 {originalQuestion.sentence_indo}
                               </p>
 
-                              {/* Word Badge - Highlight the vocab word */}
                               <div className="mb-4 flex items-center gap-2 flex-wrap">
                                 <p className="text-label text-text-secondary font-medium">Vocabulary:</p>
                                 <span className="inline-block bg-primary-yellow text-black px-3 py-1 rounded font-semibold text-body-sm">
@@ -565,20 +483,17 @@ export default function AiModeContent() {
                                 </span>
                               </div>
 
-                              {/* Comparison Grid */}
                               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-                                {/* Your Answer */}
                                 <div className="bg-orange-100 dark:bg-orange-950 rounded-lg p-3 sm:p-4 border-l-3 border-orange-500">
-                                  <p className="text-label text-orange-700 dark:text-orange-400 font-bold uppercase mb-1">Jawaban Kamu</p>
-                                  <p className="text-body-sm text-orange-900 dark:text-orange-300 break-words font-mono leading-relaxed min-h-[2.5rem] flex items-center">
+                                  <p className="text-label text-orange-700 dark:text-orange-400 font-bold uppercase mb-1">Your Answer</p>
+                                  <p className="text-body-sm text-orange-900 dark:text-orange-300 break-words font-mono">
                                     {wrongResult.userAnswer || '(empty)'}
                                   </p>
                                 </div>
 
-                                {/* Correct Answer */}
                                 <div className="bg-green-100 dark:bg-green-950 rounded-lg p-3 sm:p-4 border-l-3 border-green-500">
-                                  <p className="text-label text-green-700 dark:text-green-400 font-bold uppercase mb-1">Jawaban Benar</p>
-                                  <p className="text-body-sm text-green-900 dark:text-green-300 break-words font-mono leading-relaxed min-h-[2.5rem] flex items-center">
+                                  <p className="text-label text-green-700 dark:text-green-400 font-bold uppercase mb-1">Correct Answer</p>
+                                  <p className="text-body-sm text-green-900 dark:text-green-300 break-words font-mono">
                                     {originalQuestion.sentence_english}
                                   </p>
                                 </div>
@@ -589,7 +504,7 @@ export default function AiModeContent() {
                       </motion.div>
                     </AnimatePresence>
 
-                    {/* Navigation Buttons */}
+                    {/* Navigation */}
                     <div className="flex items-center justify-between gap-4 mt-6">
                       <button
                         onClick={() => setReviewIndex((prev) => (prev === 0 ? wrongAnswers.length - 1 : prev - 1))}
@@ -599,16 +514,13 @@ export default function AiModeContent() {
                         <ChevronDown className="w-5 h-5 sm:w-6 sm:h-6 rotate-90" />
                       </button>
 
-                      {/* Dots Indicator */}
                       <div className="flex-1 flex items-center justify-center gap-2 flex-wrap">
                         {wrongAnswers.map((_, idx) => (
                           <button
                             key={idx}
                             onClick={() => setReviewIndex(idx)}
                             className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full transition-all cursor-pointer ${
-                              idx === reviewIndex
-                                ? 'bg-primary-yellow w-6 sm:w-8'
-                                : 'bg-text-secondary/30 hover:bg-text-secondary/50'
+                              idx === reviewIndex ? 'bg-primary-yellow w-6 sm:w-8' : 'bg-text-secondary/30 hover:bg-text-secondary/50'
                             }`}
                           />
                         ))}
@@ -635,69 +547,22 @@ export default function AiModeContent() {
   // Game UI
   return (
     <div className="min-h-screen bg-background">
-      {/* Theme Toggle - Fixed Position Bottom Right */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <ThemeToggle />
-      </div>
+      <GameNavbar
+        currentIndex={currentIndex}
+        totalQuestions={sentences.length}
+        category={category || ''}
+        subcategory={subcategory || ''}
+        modeName="AI"
+        onBack={() => {
+          if (category) {
+            router.back();
+          } else {
+            router.push('/dashboard');
+          }
+        }}
+      />
 
-      {/* Navbar */}
-      <div className="border-b border-text-secondary/10">
-        <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
-          <div className="flex items-center justify-between mb-2 sm:mb-3 gap-2">
-            <div className="flex-1">
-              <button
-                onClick={() => {
-                  if (category) {
-                    router.back();
-                  } else {
-                    router.push('/dashboard');
-                  }
-                }}
-                className="flex items-center gap-2 text-text-secondary hover:text-primary-yellow transition-colors cursor-pointer text-body-lg"
-              >
-                <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5" />
-                <span>Back</span>
-              </button>
-            </div>
-
-            {/* Progress - Center */}
-            <div className="flex-1 text-center text-text-secondary text-label">
-              Question <span className="text-primary-yellow font-bold">{currentIndex + 1}</span> / {sentences.length}
-            </div>
-
-            {/* AI Badge - Right */}
-            <div className="flex-1 flex items-center justify-end">
-              <span className="inline-block px-3 sm:px-4 py-1.5 sm:py-2 bg-primary-yellow text-black text-label font-bold rounded-lg border-2 border-black">
-                AI
-              </span>
-            </div>
-          </div>
-
-          {/* Category & Subcategory Badges */}
-          <div className="flex items-center justify-center gap-2 flex-wrap">
-            <span className="inline-block px-2 sm:px-4 py-1 bg-secondary-purple text-white text-label font-semibold rounded-full capitalize">
-              {category}
-            </span>
-            <span className="inline-block px-2 sm:px-4 py-1 bg-primary-yellow text-black text-label font-semibold rounded-full">
-              {subcategory}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Progress Bar */}
-      <div className="max-w-4xl mx-auto px-3 sm:px-4 mt-3 sm:mt-4">
-        <div className="h-2 bg-surface rounded-full overflow-hidden">
-          <motion.div
-            className="h-full bg-primary-yellow"
-            initial={{ width: 0 }}
-            animate={{
-              width: `${((currentIndex + 1) / sentences.length) * 100}%`,
-            }}
-            transition={{ duration: 0.5 }}
-          />
-        </div>
-      </div>
+      <ProgressBar current={currentIndex} total={sentences.length} />
 
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-12">
@@ -709,6 +574,27 @@ export default function AiModeContent() {
             exit={{ opacity: 0, y: -20 }}
             className="space-y-4 sm:space-y-8"
           >
+            {/* Badges */}
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 flex-wrap mb-3">
+                {currentSentence.class && (
+                  <span className="inline-block px-3 py-1 bg-primary-yellow text-black text-xs font-semibold rounded-full">
+                    {currentSentence.class}
+                  </span>
+                )}
+                {currentSentence.category && (
+                  <span className="inline-block px-3 py-1 bg-secondary-purple text-white text-xs rounded-full">
+                    {currentSentence.category}
+                  </span>
+                )}
+                {currentSentence.subcategory && (
+                  <span className="inline-block px-3 py-1 bg-blue-500/80 text-white text-xs rounded-full">
+                    {currentSentence.subcategory}
+                  </span>
+                )}
+              </div>
+            </div>
+
             {/* Question - Indonesian Sentence */}
             <div className="bg-card border-2 border-theme rounded-2xl p-4 sm:p-8">
               <p className="text-label font-semibold text-text-secondary mb-2 uppercase tracking-wide">
@@ -744,10 +630,7 @@ export default function AiModeContent() {
               <div className="flex gap-2 sm:gap-4 flex-row w-full">
                 <button
                   onClick={handleHintClick}
-                  disabled={
-                    hintClickCount >=
-                      getMaxWordLength(currentSentence.sentence_english) || !!feedback
-                  }
+                  disabled={hintClickCount >= getMaxWordLength(currentSentence.sentence_english) || !!feedback}
                   className="flex-1 py-3 sm:py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer bg-secondary-purple text-white hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed text-body-xs sm:text-body-lg"
                 >
                   <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -760,11 +643,7 @@ export default function AiModeContent() {
                   disabled={isSubmitting || !userAnswer.trim() || !!feedback}
                   className="flex-1 py-3 sm:py-3 rounded-xl font-semibold bg-primary-yellow text-black hover:scale-105 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-body-xs sm:text-body-lg flex items-center justify-center"
                 >
-                  {feedback
-                    ? feedback === 'correct'
-                      ? '✓ Correct!'
-                      : '✗ Wrong!'
-                    : 'Check Answer'}
+                  {feedback ? (feedback === 'correct' ? '✓ Correct!' : '✗ Wrong!') : 'Check Answer'}
                 </button>
               </div>
             </div>
@@ -811,6 +690,47 @@ export default function AiModeContent() {
           </motion.div>
         </AnimatePresence>
       </div>
+
+      {/* Loading Submission Modal */}
+      {isSubmittingResults && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/50"
+        >
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="flex flex-col items-center gap-4"
+          >
+            <div className="text-center space-y-4">
+              <motion.p
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                className="text-primary-yellow text-heading-3 font-bold"
+              >
+                Submitting Your Results...
+              </motion.p>
+
+              <div className="flex justify-center gap-2">
+                {[0, 1, 2].map((i) => (
+                  <motion.div
+                    key={i}
+                    animate={{ y: [-8, 0, -8] }}
+                    transition={{
+                      duration: 0.6,
+                      repeat: Infinity,
+                      delay: i * 0.1,
+                    }}
+                    className="w-2 h-2 rounded-full bg-primary-yellow"
+                  />
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 }
