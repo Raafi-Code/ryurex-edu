@@ -44,7 +44,7 @@ export default function Navbar() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 cursor-pointer">
-            <Image src="/R Icon No BG.png" width={32} height={32} alt="RyuLearn" className="rounded-sm dark:bg-white/90" />
+            <Image src="/R Icon No BG.png" width={32} height={32} alt="" className="rounded-sm dark:bg-white/90" aria-hidden="true" />
             <span className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">RyuLearn</span>
           </Link>
 
@@ -62,6 +62,7 @@ export default function Navbar() {
                 <button
                   onClick={handleLogout}
                   className="w-10 h-10 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors flex items-center justify-center cursor-pointer"
+                  aria-label="Logout"
                 >
                   <LogOut className="w-5 h-5 text-red-400" />
                 </button>
@@ -88,6 +89,8 @@ export default function Navbar() {
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="p-2 cursor-pointer"
+              aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={isMobileMenuOpen}
             >
               {isMobileMenuOpen ? (
                 <X className="w-6 h-6" />

@@ -31,6 +31,7 @@ export default function CompactNavbar({ title, showBackButton = true }: CompactN
               <button
                 onClick={() => router.push('/dashboard')}
                 className="p-1.5 hover:bg-background/50 rounded-lg transition-colors cursor-pointer"
+                aria-label="Go back to dashboard"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
@@ -48,7 +49,7 @@ export default function CompactNavbar({ title, showBackButton = true }: CompactN
             <button
               onClick={handleLogout}
               className="p-1.5 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
-              title="Logout"
+              aria-label="Logout"
             >
               <LogOut className="w-5 h-5 text-red-400" />
             </button>
