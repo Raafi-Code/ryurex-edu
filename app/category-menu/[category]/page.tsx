@@ -590,39 +590,48 @@ export default function CategoryMenuPage() {
                 </button>
 
                 {/* AI Mode Button */}
-                {selectedSubcategory !== null && (
-                  <button
-                    onClick={handlePlayAiMode}
-                    className="w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer bg-secondary-purple text-white hover:scale-105 hover:shadow-lg"
-                  >
-                    <Play className="w-4 h-4" />
-                    <span>Sentence Mode</span>
-                    <span className="bg-primary-yellow text-black px-1.5 py-0.5 rounded text-xs">AI</span>
-                  </button>
-                )}
+                <button
+                  onClick={handlePlayAiMode}
+                  disabled={selectedSubcategory === null}
+                  className={`w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer bg-secondary-purple text-white ${
+                    selectedSubcategory !== null
+                      ? 'hover:scale-105 hover:shadow-lg'
+                      : 'opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  <Play className="w-4 h-4" />
+                  <span>Sentence Mode</span>
+                  <span className="bg-primary-yellow text-black px-1.5 py-0.5 rounded text-xs">AI</span>
+                </button>
 
                 {/* Sentence Click Game Button */}
-                {selectedSubcategory !== null && (
-                  <button
-                    onClick={handlePlaySentenceGame}
-                    className="w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer bg-emerald-600 text-white hover:scale-105 hover:shadow-lg"
-                  >
-                    <Play className="w-4 h-4" />
-                    <span>Sentence Click</span>
-                    <span className="bg-primary-yellow text-black px-1.5 py-0.5 rounded text-xs">AI</span>
-                  </button>
-                )}
+                <button
+                  onClick={handlePlaySentenceGame}
+                  disabled={selectedSubcategory === null}
+                  className={`w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer bg-emerald-600 text-white ${
+                    selectedSubcategory !== null
+                      ? 'hover:scale-105 hover:shadow-lg'
+                      : 'opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  <Play className="w-4 h-4" />
+                  <span>Sentence Click</span>
+                  <span className="bg-primary-yellow text-black px-1.5 py-0.5 rounded text-xs">AI</span>
+                </button>
 
                 {/* Fill the Word Game Button */}
-                {selectedSubcategory !== null && (
-                  <button
-                    onClick={handlePlayFillTheWord}
-                    className="w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer bg-orange-500 text-white hover:scale-105 hover:shadow-lg"
-                  >
-                    <Play className="w-4 h-4" />
-                    <span>Fill the Word</span>
-                  </button>
-                )}
+                <button
+                  onClick={handlePlayFillTheWord}
+                  disabled={selectedSubcategory === null}
+                  className={`w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer bg-orange-500 text-white ${
+                    selectedSubcategory !== null
+                      ? 'hover:scale-105 hover:shadow-lg'
+                      : 'opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  <Play className="w-4 h-4" />
+                  <span>Fill the Word</span>
+                </button>
               </div>
 
               {/* Info Text */}

@@ -12,6 +12,7 @@ interface GameResult {
 interface BatchRequest {
   results: GameResult[];
   mode?: 'practice' | 'spaced-repetition'; // 'practice' = no locking, 'spaced-repetition' = with locking
+  gameMode?: 'default' | 'sentence-ordering'; // 'sentence-ordering' = no time limit for fluency
 }
 
 export async function POST(request: NextRequest) {
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { results, mode = 'spaced-repetition' } = await request.json() as BatchRequest;
+    const { results, mode = 'spaced-repetition', gameMode = 'default' } = await request.json() as BatchRequest;
 
     if (!Array.isArray(results) || results.length === 0) {
       return NextResponse.json(
@@ -108,8 +109,33 @@ export async function POST(request: NextRequest) {
       let newFluency = 0;
       
       const hintWasUsed = result.hintUsed === true;
-      
-      if (correct && time_taken <= 5) {
+
+      if (gameMode === 'sentence-ordering') {
+        // 🧩 SENTENCE ORDERING MODE: No time limit for fluency
+        // Correct = +1 fluency, Wrong = reset to 0
+        if (correct) {
+          if (mode === 'practice' || isNextDueToday) {
+            fluencyChange = +1;
+          } else {
+            fluencyChange = 0;
+          }
+          newFluency = Math.max(0, Math.min(10, (currentProgress?.fluency ?? 0) + fluencyChange));
+          
+          if (newFluency === 0) {
+            daysUntilNext = 0;
+          } else if (newFluency === 1) {
+            daysUntilNext = 1;
+          } else if (newFluency === 2) {
+            daysUntilNext = 3;
+          } else {
+            daysUntilNext = Math.round(7 * Math.pow(1.7, newFluency - 3));
+          }
+        } else {
+          // ❌ WRONG - RESET!
+          newFluency = 0;
+          daysUntilNext = 0;
+        }
+      } else if (correct && time_taken <= 5) {
         // ⚡ VERY FAST (≤5s)
         if (mode === 'practice' || isNextDueToday) {
           // If hint used: always +1. If no hint: +2 bonus
@@ -181,7 +207,9 @@ export async function POST(request: NextRequest) {
       // Calculate XP gain (with bonus for very fast answers)
       let xpGain = 0;
       if (correct) {
-        if (time_taken <= 5) {
+        if (gameMode === 'sentence-ordering') {
+          xpGain = 10; // 🧩 Sentence ordering: flat 10 XP per correct
+        } else if (time_taken <= 5) {
           xpGain = 15; // ⚡ Very fast: 15 XP (bonus!)
         } else if (time_taken < 10) {
           xpGain = 10; // 🔥 Fast correct: 10 XP

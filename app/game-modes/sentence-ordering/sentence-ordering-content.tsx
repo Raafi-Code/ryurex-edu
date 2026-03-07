@@ -62,6 +62,7 @@ export default function SentenceOrderingContent() {
   const [showResultModal, setShowResultModal] = useState(false);
   const [isSubmittingResults, setIsSubmittingResults] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [xpGained, setXpGained] = useState(0);
 
   // Keyboard typing filter for word selection
   const [typingFilter, setTypingFilter] = useState('');
@@ -82,6 +83,7 @@ export default function SentenceOrderingContent() {
     setShowResultModal(false);
     setIsSubmittingResults(false);
     setError(null);
+    setXpGained(0);
   }, [category, subcategory]);
 
   // Fetch AI sentences
@@ -177,7 +179,13 @@ export default function SentenceOrderingContent() {
 
     const removedBox = selectedAnswer[index];
     setSelectedAnswer((prev) => prev.filter((_, i) => i !== index));
-    setAnswerBoxes((prev) => [...prev, removedBox].sort((a, b) => a.originalIndex - b.originalIndex));
+    setAnswerBoxes((prev) => {
+      const newBoxes = [...prev];
+      // Insert at a random position instead of sorting by originalIndex
+      const randomIndex = Math.floor(Math.random() * (newBoxes.length + 1));
+      newBoxes.splice(randomIndex, 0, removedBox);
+      return newBoxes;
+    });
   };
 
   const handleClear = () => {
@@ -233,13 +241,20 @@ export default function SentenceOrderingContent() {
   const submitAllResults = async (results: GameResult[]) => {
     setIsSubmittingResults(true);
     try {
-      const response = await fetch('/api/ai/submitScore', {
+      // Submit to submitBatch with sentence-ordering gameMode (no time limit for fluency)
+      const batchResults = results.map((r) => ({
+        vocab_id: r.vocab_id,
+        correct: r.correct,
+        time_taken: 1, // No time limit in sentence-ordering; use minimal value
+      }));
+
+      const response = await fetch('/api/submitBatch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          results,
-          category,
-          subcategory: subcategory || '',
+          results: batchResults,
+          mode: 'practice',
+          gameMode: 'sentence-ordering',
         }),
       });
 
@@ -248,6 +263,8 @@ export default function SentenceOrderingContent() {
         throw new Error(errorData.error || 'Failed to submit results');
       }
 
+      const data = await response.json();
+      setXpGained(data.totalXpGained || 0);
       setShowResultModal(true);
     } catch (error) {
       console.error('❌ Error submitting results:', error);
@@ -280,10 +297,19 @@ export default function SentenceOrderingContent() {
       if (e.key === 'Enter') {
         e.preventDefault();
         if (typingFilter.length > 0) {
+          const filter = typingFilter.toLowerCase();
           const matches = answerBoxes.filter((box) =>
-            box.word.toLowerCase().startsWith(typingFilter.toLowerCase())
+            box.word.toLowerCase().startsWith(filter)
           );
           if (matches.length > 0) {
+            // Sort by similarity: exact match first, then by how close the match is
+            matches.sort((a, b) => {
+              const aWord = a.word.toLowerCase();
+              const bWord = b.word.toLowerCase();
+              const aSimilarity = filter.length / aWord.length;
+              const bSimilarity = filter.length / bWord.length;
+              return bSimilarity - aSimilarity;
+            });
             const selectedBox = matches[0];
             setAnswerBoxes((prevBoxes) => prevBoxes.filter((b) => b.id !== selectedBox.id));
             setSelectedAnswer((prevAnswer) => [...prevAnswer, selectedBox]);
@@ -429,11 +455,19 @@ export default function SentenceOrderingContent() {
               </p>
             </div>
 
+            {/* XP Card */}
+            {xpGained > 0 && (
+              <div className="bg-primary-yellow rounded-2xl p-6">
+                <p className="text-black/70 text-sm font-semibold">Total XP Gained</p>
+                <p className="text-5xl font-bold text-black">+{xpGained}</p>
+              </div>
+            )}
+
             {/* Accuracy Card */}
-            <div className="bg-primary-yellow rounded-2xl p-6">
-              <p className="text-black/70 text-sm font-semibold">Accuracy</p>
-              <p className="text-5xl font-bold text-black">{accuracy}%</p>
-              <p className="text-black/60 text-sm mt-2">
+            <div className={`rounded-2xl p-6 ${theme === 'dark' ? 'bg-card' : 'bg-gray-100'}`}>
+              <p className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Accuracy</p>
+              <p className={`text-5xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{accuracy}%</p>
+              <p className={`text-sm mt-2 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
                 {correctCount} of {gameResults.length} correct
               </p>
             </div>
