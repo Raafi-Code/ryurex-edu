@@ -81,7 +81,7 @@ export default function JoinGamePage() {
     try {
       // First, get the lobby data
       const { data: lobby, error: fetchError } = await supabase
-        .from('pvp_lobbies')
+        .from('learn_pvp_lobbies')
         .select('*')
         .eq('game_code', gameCode)
         .single();
@@ -131,7 +131,7 @@ export default function JoinGamePage() {
 
       // Get host display name
       const { data: hostData } = await supabase
-        .from('users')
+        .from('user_profiles')
         .select('display_name')
         .eq('id', lobby.host_user_id)
         .single();
@@ -172,7 +172,7 @@ export default function JoinGamePage() {
     try {
       // Verify lobby still exists and is in waiting status
       const { data: lobbyCheck, error: checkError } = await supabase
-        .from('pvp_lobbies')
+        .from('learn_pvp_lobbies')
         .select('status, joined_user_id')
         .eq('game_code', gameCode)
         .single();
@@ -198,7 +198,7 @@ export default function JoinGamePage() {
 
       // Update the lobby with joined_user_id AND change status to opponent_joined
       const { error: updateError } = await supabase
-        .from('pvp_lobbies')
+        .from('learn_pvp_lobbies')
         .update({
           joined_user_id: user.id,
           status: 'opponent_joined',

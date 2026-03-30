@@ -187,7 +187,7 @@ export default function CreateLobbyPage() {
 
       // Create lobby in database
       const { data, error } = await supabase
-        .from('pvp_lobbies')
+        .from('learn_pvp_lobbies')
         .insert({
           host_user_id: user.id,
           game_code: gameCode,

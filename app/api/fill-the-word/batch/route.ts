@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
 
     // 1. Get category ID
     const { data: catData, error: catError } = await supabase
-      .from('categories')
+      .from('learn_categories')
       .select('id')
       .eq('name', category)
       .single();
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
     // 2. Get vocab IDs from mapping
     const isRandomMode = subcategory === '0' || subcategory.toLowerCase() === 'random';
     let mappingQuery = supabase
-      .from('vocab_category_mapping')
+      .from('learn_vocab_category_mapping')
       .select('vocab_id')
       .eq('category_id', catData.id);
 
@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
 
     // 3. Fetch vocab words
     const { data: vocabWords, error: fetchError } = await supabase
-      .from('vocab_master')
+      .from('learn_vocab_master')
       .select('id, indo, english_primary, synonyms, class')
       .in('id', vocabIds)
       .order('id');
@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
 
     // 4. Check which vocab already have sentences in sentence_blanks
     const { data: existingSentences, error: sentenceError } = await supabase
-      .from('sentence_blanks')
+      .from('learn_sentence_blanks')
       .select('id, vocab_id, sentence_indo, sentence_english, blank_answer, explanation')
       .in('vocab_id', vocabIds);
 
@@ -206,7 +206,7 @@ export async function GET(request: NextRequest) {
             }));
 
             const { data: insertedData, error: insertError } = await supabase
-              .from('sentence_blanks')
+              .from('learn_sentence_blanks')
               .insert(insertData)
               .select();
 
@@ -239,7 +239,7 @@ export async function GET(request: NextRequest) {
     // 7. Initialize user_vocab_progress for new words (same logic as getCustomBatch)
     const wordIds = vocabWords.map(w => w.id);
     const { data: progressData } = await supabase
-      .from('user_vocab_progress')
+      .from('learn_user_vocab_progress')
       .select('vocab_id, fluency, correct_count, next_due')
       .eq('user_id', user.id)
       .in('vocab_id', wordIds);
@@ -270,7 +270,7 @@ export async function GET(request: NextRequest) {
       }));
 
       const { error: insertError } = await supabase
-        .from('user_vocab_progress')
+        .from('learn_user_vocab_progress')
         .insert(newProgressEntries)
         .select();
 

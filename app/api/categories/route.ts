@@ -37,7 +37,7 @@ export async function GET() {
 
     // Fetch image_url from categories table
     const { data: categoriesData } = await supabase
-      .from('categories')
+      .from('learn_categories')
       .select('name, image_url');
 
     const imageUrlMap: { [key: string]: string | null } = {};

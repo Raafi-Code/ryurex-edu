@@ -122,7 +122,11 @@ export function isAllowedOrigin(origin: string | null): boolean {
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'http://localhost:3001',
-    // Add production domain here
+    'http://localhost:3002',
+    'https://auth.ryurex.com',
+    'https://ryufin.ryurex.com',
+    'https://ryulearn.ryurex.com',
+    'https://ryurex.com',
     process.env.NEXT_PUBLIC_APP_URL,
   ].filter(Boolean);
   

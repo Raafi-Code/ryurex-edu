@@ -5,7 +5,10 @@ An adaptive English vocabulary learning platform with multiple game modes, AI-po
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38bdf8?logo=tailwindcss)
-![Supabase](https://img.shields.io/badge/Supabase-Auth_%26_DB-3fcf8e?logo=supabase)
+![Supabase](https://img.shields.io/badge/Supabase-Database-3fcf8e?logo=supabase)
+![SSO](https://img.shields.io/badge/SSO-Ryurex_Auth-DC2626?logo=shield)
+
+> **Part of the [Ryurex Ecosystem](https://ryurex.com)** — Uses unified authentication via [auth.ryurex.com](https://auth.ryurex.com)
 
 ## ✨ Features
 
@@ -28,7 +31,7 @@ An adaptive English vocabulary learning platform with multiple game modes, AI-po
 - Leaderboard with global rankings
 
 ### 🎯 Other Features
-- 🔐 Secure authentication (Supabase Auth)
+- 🔐 SSO authentication via [auth.ryurex.com](https://auth.ryurex.com)
 - 🌙 Dark / Light theme toggle
 - 📱 Responsive design (mobile-first)
 - 🗂️ Category & subcategory system with Oxford-level classification
@@ -45,7 +48,8 @@ An adaptive English vocabulary learning platform with multiple game modes, AI-po
 | **Animations** | [Framer Motion](https://www.framer.com/motion/) |
 | **Icons** | [Lucide React](https://lucide.dev/) |
 | **Charts** | [Recharts](https://recharts.org/) |
-| **Auth & Database** | [Supabase](https://supabase.com/) |
+| **Auth** | SSO via [auth.ryurex.com](https://auth.ryurex.com) + [Supabase](https://supabase.com/) |
+| **Database** | [Supabase](https://supabase.com/) (PostgreSQL, RLS) |
 | **AI** | [Groq SDK](https://groq.com/) |
 
 ## 🏗️ Project Structure
@@ -111,7 +115,7 @@ RyuLearn/
 ### Prerequisites
 - Node.js 18+
 - npm
-- A [Supabase](https://supabase.com/) project
+- A [Supabase](https://supabase.com/) project (unified with RyuFin & ryurex-auth)
 - A [Groq](https://console.groq.com/) API key (for AI features)
 
 ### Installation
@@ -131,11 +135,23 @@ RyuLearn/
    ```bash
    cp .env.example .env.local
    ```
-   Fill in your Supabase URL, anon key, and Groq API key in `.env.local`.
+   Fill in your Supabase URL, anon key, Groq API key, and SSO config in `.env.local`:
 
-4. **Set up the database:**
-   - Run the SQL migrations from `supabase/migrations/` in your Supabase dashboard
-   - Optionally seed data using `supabase/seed_example.sql`
+   ```env
+   # Supabase (SAME values as auth.ryurex.com & RyuFin)
+   NEXT_PUBLIC_SUPABASE_URL=your_unified_supabase_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_unified_anon_key
+
+   # SSO Cookie Domain (.ryurex.com in production, empty for localhost)
+   NEXT_PUBLIC_COOKIE_DOMAIN=.ryurex.com
+
+   # App URLs
+   NEXT_PUBLIC_APP_URL=https://ryulearn.ryurex.com
+   NEXT_PUBLIC_AUTH_URL=https://auth.ryurex.com
+
+   # AI
+   GROQ_API_KEY=your_groq_api_key
+   ```
 
 5. **Start the development server:**
    ```bash
@@ -176,13 +192,29 @@ RyuLearn/
 - [ ] Social features (friends, challenges)
 - [ ] More languages support
 
+## 📦 Unified Database
+
+RyuLearn uses the **unified Ryurex database** shared with RyuFin. All RyuLearn tables use the `learn_` prefix:
+
+| Table | Description |
+|-------|-------------|
+| `learn_vocab_master` | All vocabulary words |
+| `learn_categories` | Category definitions (e.g., Food, Animal, A1 Oxford) |
+| `learn_vocab_category_mapping` | Maps vocab to categories & subcategories |
+| `learn_sentence_blanks` | Sentence exercises for fill-the-word |
+| `learn_user_vocab_progress` | Per-user learning progress & fluency |
+| `learn_pvp_lobbies` | PvP multiplayer game rooms |
+| `user_profiles` | _(shared)_ User profiles, XP, streaks |
+
+See `unified-database-schema.sql` at the project root for the full schema.
+
 ## 📄 License
 
-This project is licensed under the MIT License.
+© 2026 Ryurex Corporation. All rights reserved.
 
 ## 👤 Author
 
-**Ryurex**
+**Muhammad Rafi** — [Ryurex Corporation](https://ryurex.com)
 
 ---
 

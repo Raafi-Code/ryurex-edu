@@ -171,7 +171,7 @@ export default function LobbyPage() {
 
           // Fetch user profiles
           const { data: hostData } = await supabase
-            .from('users')
+            .from('user_profiles')
             .select('id, display_name')
             .eq('id', data.host_user_id)
             .single();
@@ -182,7 +182,7 @@ export default function LobbyPage() {
 
           if (data.joined_user_id) {
             const { data: joinedData } = await supabase
-              .from('users')
+              .from('user_profiles')
               .select('id, display_name')
               .eq('id', data.joined_user_id)
               .single();

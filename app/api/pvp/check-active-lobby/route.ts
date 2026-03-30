@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
     // Check if user has an active lobby as host
     const { data: hostLobby, error: hostError } = await supabase
-      .from('pvp_lobbies')
+      .from('learn_pvp_lobbies')
       .select('id, game_code, status, expires_at')
       .eq('host_user_id', user.id)
       .in('status', ['waiting', 'opponent_joined', 'ready'])
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     // Check if user has an active lobby as joined player
     const { data: joinedLobby, error: joinedError } = await supabase
-      .from('pvp_lobbies')
+      .from('learn_pvp_lobbies')
       .select('id, game_code, status, expires_at')
       .eq('joined_user_id', user.id)
       .in('status', ['opponent_joined', 'ready', 'in_progress'])

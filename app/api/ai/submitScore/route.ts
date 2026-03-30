@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
     // Update user XP only (no vocabulary progress update)
     if (totalXpGained > 0) {
       const { data: userData, error: userFetchError } = await supabase
-        .from('users')
+        .from('user_profiles')
         .select('xp')
         .eq('id', userId)
         .single();
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
         const newXp = (userData.xp || 0) + totalXpGained;
 
         const { error: updateError } = await supabase
-          .from('users')
+          .from('user_profiles')
           .update({
             xp: newXp,
             updated_at: new Date().toISOString(),
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
     if (hasCorrect) {
       const todayStr = new Date().toISOString().split('T')[0];
       const { data: userData } = await supabase
-        .from('users')
+        .from('user_profiles')
         .select('last_activity_date, streak')
         .eq('id', userId)
         .single();
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
         }
 
         await supabase
-          .from('users')
+          .from('user_profiles')
           .update({
             last_activity_date: todayStr,
             streak: newStreak,

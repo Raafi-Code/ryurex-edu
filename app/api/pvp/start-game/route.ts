@@ -34,7 +34,7 @@ async function generateAISentencesWithGroq(
     
     // Get category id
     const { data: catData, error: catError } = await supabase
-      .from('categories')
+      .from('learn_categories')
       .select('id')
       .eq('name', category)
       .single();
@@ -46,7 +46,7 @@ async function generateAISentencesWithGroq(
 
     // Get vocab IDs from mapping
     const { data: mappingData, error: mappingError } = await supabase
-      .from('vocab_category_mapping')
+      .from('learn_vocab_category_mapping')
       .select('vocab_id')
       .eq('category_id', catData.id)
       .eq('subcategory_name', subcategory);
@@ -60,7 +60,7 @@ async function generateAISentencesWithGroq(
 
     // Fetch vocab words
     const { data: vocabData, error: fetchError } = await supabase
-      .from('vocab_master')
+      .from('learn_vocab_master')
       .select('id, indo, english_primary, synonyms, class')
       .in('id', vocabIds)
       .order('id')
@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
 
     // Fetch lobby data
     const { data: lobby, error: fetchError } = await supabase
-      .from('pvp_lobbies')
+      .from('learn_pvp_lobbies')
       .select('*')
       .eq('id', lobbyId)
       .single();
@@ -278,7 +278,7 @@ export async function POST(request: NextRequest) {
     }
     
     const { error: updateError } = await supabase
-      .from('pvp_lobbies')
+      .from('learn_pvp_lobbies')
       .update(updateData)
       .eq('id', lobbyId);
 

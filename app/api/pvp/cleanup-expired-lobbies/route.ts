@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
 
     // Delete lobbies that have expired (more than 5 minutes old and still in 'waiting' status)
     const { error, data } = await supabase
-      .from('pvp_lobbies')
+      .from('learn_pvp_lobbies')
       .delete()
       .eq('status', 'waiting')
       .lt('expires_at', new Date().toISOString());

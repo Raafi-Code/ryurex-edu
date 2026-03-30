@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     // 1. Fetch all Indonesian words from the category/subcategory via mapping table
     // Get category id
     const { data: catData, error: catError } = await supabase
-      .from('categories')
+      .from('learn_categories')
       .select('id')
       .eq('name', category)
       .single();
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
 
     // Get vocab IDs from mapping for this subcategory
     const { data: mappingData, error: mappingError } = await supabase
-      .from('vocab_category_mapping')
+      .from('learn_vocab_category_mapping')
       .select('vocab_id')
       .eq('category_id', catData.id)
       .eq('subcategory_name', subcategory);
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
 
     // Fetch vocab data
     const { data: vocabWords, error: fetchError } = await supabase
-      .from('vocab_master')
+      .from('learn_vocab_master')
       .select('id, indo, english_primary, synonyms, class')
       .in('id', vocabIds)
       .order('id');
@@ -198,7 +198,7 @@ Return ONLY a JSON array with this exact structure, no other text, no markdown c
       // 2b. Fallback: Try to fetch sentences from sentence_blanks table
       try {
         const { data: fallbackData, error: fallbackError } = await supabase
-          .from('sentence_blanks')
+          .from('learn_sentence_blanks')
           .select('vocab_id, sentence_indo, sentence_english')
           .in('vocab_id', vocabIds)
           .limit(vocabIds.length);

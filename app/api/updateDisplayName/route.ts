@@ -56,7 +56,7 @@ export async function PUT(req: NextRequest) {
 
     // Update user's display_name
     const { data, error } = await supabase
-      .from('users')
+      .from('user_profiles')
       .update({ display_name: trimmedDisplayName })
       .eq('id', user.id)
       .select('id, username, display_name')

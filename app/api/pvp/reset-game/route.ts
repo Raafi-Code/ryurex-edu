@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     // Fetch lobby data
     const { data: lobby, error: fetchError } = await supabase
-      .from('pvp_lobbies')
+      .from('learn_pvp_lobbies')
       .select('*')
       .eq('id', lobbyId)
       .single();
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     // Reset lobby for new game
     const { error: updateError } = await supabase
-      .from('pvp_lobbies')
+      .from('learn_pvp_lobbies')
       .update({
         // Reset game status and scores
         status: newStatus,

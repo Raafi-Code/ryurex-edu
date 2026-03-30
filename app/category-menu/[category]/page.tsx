@@ -143,7 +143,7 @@ export default function CategoryMenuPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: progressData, error } = await supabase
-          .from('user_vocab_progress')
+          .from('learn_user_vocab_progress')
           .select('vocab_id, fluency')
           .eq('user_id', user.id)
           .gt('fluency', 0);
@@ -154,7 +154,7 @@ export default function CategoryMenuPage() {
           
           // Fetch vocab_category_mapping for this category to map learned vocab_ids to subcategories
           const { data: catData } = await supabase
-            .from('categories')
+            .from('learn_categories')
             .select('id, image_url')
             .eq('name', categoryName)
             .single();
@@ -166,7 +166,7 @@ export default function CategoryMenuPage() {
             }
 
             const { data: mappingData } = await supabase
-              .from('vocab_category_mapping')
+              .from('learn_vocab_category_mapping')
               .select('vocab_id, subcategory_name')
               .eq('category_id', catData.id)
               .in('vocab_id', Array.from(learnedVocabIds));
@@ -206,7 +206,7 @@ export default function CategoryMenuPage() {
           // Fetch vocab items that are due today from this category
           // Step 1: Get category id
           const { data: catIdData } = await supabase
-            .from('categories')
+            .from('learn_categories')
             .select('id')
             .eq('name', categoryName)
             .single();
@@ -214,7 +214,7 @@ export default function CategoryMenuPage() {
           if (catIdData) {
             // Get all vocab IDs from mapping for this category
             const { data: categoryVocabMapping } = await supabase
-              .from('vocab_category_mapping')
+              .from('learn_vocab_category_mapping')
               .select('vocab_id')
               .eq('category_id', catIdData.id);
 
@@ -223,7 +223,7 @@ export default function CategoryMenuPage() {
             
             // Step 2: Count vocab_progress entries that are due today and belong to this category
             const { data: dueVocabData, error } = await supabase
-              .from('user_vocab_progress')
+              .from('learn_user_vocab_progress')
               .select('id')
               .eq('user_id', user.id)
               .lte('next_due', today)
@@ -260,7 +260,7 @@ export default function CategoryMenuPage() {
         try {
           // Get category id
           const { data: catData } = await supabase
-            .from('categories')
+            .from('learn_categories')
             .select('id')
             .eq('name', categoryName)
             .single();
@@ -268,7 +268,7 @@ export default function CategoryMenuPage() {
           if (catData) {
             // Get vocab IDs from mapping for this subcategory
             const { data: mappingData } = await supabase
-              .from('vocab_category_mapping')
+              .from('learn_vocab_category_mapping')
               .select('vocab_id')
               .eq('category_id', catData.id)
               .eq('subcategory_name', selectedSubcategory);
@@ -276,7 +276,7 @@ export default function CategoryMenuPage() {
             if (mappingData && mappingData.length > 0) {
               const vocabIds = mappingData.map(m => m.vocab_id);
               const { data: vocabData } = await supabase
-                .from('vocab_master')
+                .from('learn_vocab_master')
                 .select('id, english_primary, indo')
                 .in('id', vocabIds)
                 .order('english_primary', { ascending: true });

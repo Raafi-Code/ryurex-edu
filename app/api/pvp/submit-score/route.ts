@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     // Verify user is in this lobby
     const { data: lobby, error: fetchError } = await supabase
-      .from('pvp_lobbies')
+      .from('learn_pvp_lobbies')
       .select('*')
       .eq('id', lobbyId)
       .single();
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
 
     // Update lobby with score and stats
     const { error: updateError } = await supabase
-      .from('pvp_lobbies')
+      .from('learn_pvp_lobbies')
       .update(updateData)
       .eq('id', lobbyId);
 

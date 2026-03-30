@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
 
       // Fetch current progress
       const { data: currentProgress, error: fetchError } = await supabase
-        .from('user_vocab_progress')
+        .from('learn_user_vocab_progress')
         .select('fluency, xp_earned, correct_count, wrong_count, response_avg, next_due')
         .eq('user_id', user.id)
         .eq('vocab_id', vocab_id)
@@ -250,7 +250,7 @@ export async function POST(request: NextRequest) {
     // Batch update all progress records
     for (const update of updates) {
       const { error: updateError } = await supabase
-        .from('user_vocab_progress')
+        .from('learn_user_vocab_progress')
         .upsert({
           user_id: user.id,
           vocab_id: update.vocab_id,
@@ -273,7 +273,7 @@ export async function POST(request: NextRequest) {
 
     // Update user's total XP
     const { data: userData, error: userFetchError } = await supabase
-      .from('users')
+      .from('user_profiles')
       .select('xp')
       .eq('id', user.id)
       .single();
@@ -282,7 +282,7 @@ export async function POST(request: NextRequest) {
       const newXp = (userData.xp || 0) + totalXpGained;
       
       const { error: xpError } = await supabase
-        .from('users')
+        .from('user_profiles')
         .update({ xp: newXp })
         .eq('id', user.id);
 
@@ -293,7 +293,7 @@ export async function POST(request: NextRequest) {
 
     // Update streak
     const { data: streakData, error: streakFetchError } = await supabase
-      .from('users')
+      .from('user_profiles')
       .select('streak, last_activity_date')
       .eq('id', user.id)
       .single();
@@ -323,7 +323,7 @@ export async function POST(request: NextRequest) {
 
       // Update streak and last_activity_date
       await supabase
-        .from('users')
+        .from('user_profiles')
         .update({
           streak: newStreak,
           last_activity_date: today,

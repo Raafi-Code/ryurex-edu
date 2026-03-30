@@ -48,7 +48,7 @@ export async function GET() {
 
     // Get top 10 users by XP (leaderboard)
     const { data: leaderboardData, error: leaderboardError } = await supabase
-      .from('users')
+      .from('user_profiles')
       .select('id, display_name, xp')
       .order('xp', { ascending: false })
       .limit(10);
@@ -75,7 +75,7 @@ export async function GET() {
 
     // Get current user's rank
     const { data: allUsersData, error: allUsersError } = await supabase
-      .from('users')
+      .from('user_profiles')
       .select('id, xp')
       .order('xp', { ascending: false });
 
@@ -96,7 +96,7 @@ export async function GET() {
 
     // Get current user's data
     const { data: currentUserData, error: currentUserError } = await supabase
-      .from('users')
+      .from('user_profiles')
       .select('display_name, xp')
       .eq('id', user.id)
       .single();

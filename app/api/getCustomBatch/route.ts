@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
 
     // Get category ID from categories table
     const { data: categoryData, error: categoryError } = await supabase
-      .from('categories')
+      .from('learn_categories')
       .select('id')
       .eq('name', category)
       .single();
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
 
     // Get vocab IDs from mapping table for this category + subcategory_name
     let mappingQuery = supabase
-      .from('vocab_category_mapping')
+      .from('learn_vocab_category_mapping')
       .select('vocab_id')
       .eq('category_id', categoryData.id);
 
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch all vocab words for these IDs — return ALL words (no 10-word limit)
     const { data: allWords, error: fetchError } = await supabase
-      .from('vocab_master')
+      .from('learn_vocab_master')
       .select('id, indo, english_primary, synonyms, class')
       .in('id', vocabIds)
       .order('id');
@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
     // Get user's progress for these words
     const wordIds = allWords.map(w => w.id);
     const { data: progressData } = await supabase
-      .from('user_vocab_progress')
+      .from('learn_user_vocab_progress')
       .select('vocab_id, fluency, correct_count')
       .eq('user_id', user.id)
       .in('vocab_id', wordIds);
@@ -174,7 +174,7 @@ export async function GET(request: NextRequest) {
       }));
 
       const { error: insertError } = await supabase
-        .from('user_vocab_progress')
+        .from('learn_user_vocab_progress')
         .insert(newProgressEntries)
         .select();
 
@@ -204,7 +204,7 @@ export async function GET(request: NextRequest) {
     // Get updated progress data for selected words
     const selectedWordIds = selectedWords.map(w => w.id);
     const { data: updatedProgress } = await supabase
-      .from('user_vocab_progress')
+      .from('learn_user_vocab_progress')
       .select('vocab_id, fluency, next_due')
       .eq('user_id', user.id)
       .in('vocab_id', selectedWordIds);

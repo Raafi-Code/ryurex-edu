@@ -46,7 +46,7 @@ export async function GET(request: Request) {
 
     // Get category ID from categories table
     const { data: categoryData, error: categoryError } = await supabase
-      .from('categories')
+      .from('learn_categories')
       .select('id')
       .eq('name', category)
       .single();
@@ -60,7 +60,7 @@ export async function GET(request: Request) {
 
     // Get all subcategories (topics) for this category via mapping table
     const { data: mappingData, error: mappingError } = await supabase
-      .from('vocab_category_mapping')
+      .from('learn_vocab_category_mapping')
       .select('subcategory_name, vocab_id, order_priority')
       .eq('category_id', categoryData.id)
       .order('order_priority', { ascending: true });

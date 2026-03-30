@@ -110,7 +110,7 @@ export default function AiSentenceCompletionSelectPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: progressData } = await supabase
-          .from('user_vocab_progress')
+          .from('learn_user_vocab_progress')
           .select('vocab_id, fluency')
           .eq('user_id', user.id)
           .gt('fluency', 0);
@@ -120,14 +120,14 @@ export default function AiSentenceCompletionSelectPage() {
           
           // Get category id from categories table
           const { data: catData } = await supabase
-            .from('categories')
+            .from('learn_categories')
             .select('id')
             .eq('name', categoryName)
             .single();
 
           if (catData) {
             const { data: mappingData } = await supabase
-              .from('vocab_category_mapping')
+              .from('learn_vocab_category_mapping')
               .select('vocab_id, subcategory_name')
               .eq('category_id', catData.id)
               .in('vocab_id', Array.from(learnedVocabIds));

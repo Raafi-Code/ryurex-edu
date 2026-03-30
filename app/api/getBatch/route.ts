@@ -31,7 +31,7 @@ export async function GET(request: Request) {
 
     // Check if user exists in public.users table
     const { data: userData, error: userError } = await supabase
-      .from('users')
+      .from('user_profiles')
       .select('id')
       .eq('id', user.id)
       .single();
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
     // Step 1: Get ALL progress records due TODAY or BEFORE
     // Using lte() with string comparison: YYYY-MM-DD format allows safe string comparison
     const progressQuery = supabase
-      .from('user_vocab_progress')
+      .from('learn_user_vocab_progress')
       .select('vocab_id, fluency, next_due')
       .eq('user_id', user.id)
       .lte('next_due', today)  // Filters: next_due <= today (safe with YYYY-MM-DD format)
@@ -98,14 +98,14 @@ export async function GET(request: Request) {
       console.log(`🎯 Filtering by category: ${categoryFilter}`);
       // Get category id
       const { data: catData } = await supabase
-        .from('categories')
+        .from('learn_categories')
         .select('id')
         .eq('name', categoryFilter)
         .single();
 
       if (catData) {
         let mappingQuery = supabase
-          .from('vocab_category_mapping')
+          .from('learn_vocab_category_mapping')
           .select('vocab_id')
           .eq('category_id', catData.id)
           .in('vocab_id', vocabIds);
@@ -127,7 +127,7 @@ export async function GET(request: Request) {
     }
 
     let vocabQuery = supabase
-      .from('vocab_master')
+      .from('learn_vocab_master')
       .select('id, indo, english_primary, synonyms, class')
       .in('id', filteredVocabIds);
 
@@ -143,7 +143,7 @@ export async function GET(request: Request) {
 
     // Step 3: Fetch category & subcategory info from mapping table
     const { data: mappingWithCategory } = await supabase
-      .from('vocab_category_mapping')
+      .from('learn_vocab_category_mapping')
       .select('vocab_id, subcategory_name, category_id, categories(name)')
       .in('vocab_id', filteredVocabIds);
 

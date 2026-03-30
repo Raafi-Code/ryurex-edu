@@ -89,7 +89,7 @@ export default function PvPResultPage() {
 
         // Get host name
         const { data: hostData } = await supabase
-          .from('users')
+          .from('user_profiles')
           .select('display_name')
           .eq('id', hostId)
           .single();
@@ -98,7 +98,7 @@ export default function PvPResultPage() {
         let joinedName = 'Unknown';
         if (joinedId) {
           const { data: joinedData } = await supabase
-            .from('users')
+            .from('user_profiles')
             .select('display_name')
             .eq('id', joinedId)
             .single();

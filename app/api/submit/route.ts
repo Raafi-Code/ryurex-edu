@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     // Get current progress
     const { data: currentProgress, error: progressError } = await supabase
-      .from('user_vocab_progress')
+      .from('learn_user_vocab_progress')
       .select('*')
       .eq('user_id', user.id)
       .eq('vocab_id', vocab_id)
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
 
     // Update progress
     const { error: updateError } = await supabase
-      .from('user_vocab_progress')
+      .from('learn_user_vocab_progress')
       .update({
         fluency: newFluency,
         next_due: nextDueDate,
@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
 
     // Get current user data
     const { data: userData, error: userError } = await supabase
-      .from('users')
+      .from('user_profiles')
       .select('xp, streak, last_activity_date')
       .eq('id', user.id)
       .single();
@@ -218,7 +218,7 @@ export async function POST(request: NextRequest) {
 
     // Update user data
     const { error: userUpdateError } = await supabase
-      .from('users')
+      .from('user_profiles')
       .update({
         xp: newXp,
         streak: newStreak,
