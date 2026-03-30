@@ -38,7 +38,7 @@ export async function updateSession(request: NextRequest) {
   const authUrl = process.env.NEXT_PUBLIC_AUTH_URL || 'https://auth.ryurex.com'
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin
 
-  const protectedRoutes = ['/dashboard', '/profile', '/game', '/pvp', '/game-modes', '/category-menu']
+  const protectedRoutes = ['/dashboard', '/profile', '/game', '/pvp', '/game-modes', '/category-menu', '/settings', '/progress-stats']
   const isProtectedRoute = protectedRoutes.some(route =>
     request.nextUrl.pathname.startsWith(route)
   )
